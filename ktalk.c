@@ -22,15 +22,16 @@ void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(char *recip, int port, char *estr);
 void netkill(int fd);
 void leave();
+void kill_and_die();
 
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 256
 #endif
 
-int newsockfd, curs_start, connest, use_curses;
+int newsockfd, curs_start, connest, use_curses, debug;
 
 int main(int argc, char **argv) {
-  int mode, ret, sockfd, debug, i, writebufflen;
+  int mode, ret, sockfd, i, writebufflen;
   char *execstr;
   krb5_context context;
   krb5_ccache ccache;
@@ -47,8 +48,8 @@ int main(int argc, char **argv) {
   struct sigaction sigact;
   char writebuff[1024], startupmsg[2048];
   krb5_int32 seqnumber;
-  krb5_auth_context auth_context;
   krb5_principal my_principal;
+  krb5_auth_context auth_context;
 
   use_curses=1;
   debug=0;
@@ -72,7 +73,7 @@ int main(int argc, char **argv) {
   if (argc == 2) mode = MODE_SERVER;
   if (argc == 4) mode = MODE_CLIENT;
 
-  sigact.sa_handler=leave;
+  sigact.sa_handler=kill_and_die;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags=0;
   sigaction(SIGINT, &sigact, NULL);
@@ -149,7 +150,7 @@ int main(int argc, char **argv) {
       exit(2);
     }
     newsockfd = sockfd;
-
+    connest=1;
     printf("connected.\n");
   }
 
@@ -507,6 +508,7 @@ void netwritedata(int fd, char *ptr, int nbytes) {
 
 void netkill(int fd) {
   /* bad hack, i know.  I won't let you type binary characters anyway :-) */
+  if (debug && !use_curses) printf("Sent kill message\n");
   netwritedata(fd, "\0\0\0Destruct\0", 12);
 }
 
@@ -582,7 +584,14 @@ void send_connect_message(char *recip, int port, char *execstr) {
 
 
 void leave() {
-  if (connest) netkill(newsockfd);
+  if (debug && !use_curses) printf("going to leave(), connest is %i\n", connest);
   if (curs_start) endwin();
   exit(0);
 }
+
+void kill_and_die() {
+  if (connest) netkill(newsockfd);
+  leave();
+}
+
+
