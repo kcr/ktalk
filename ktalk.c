@@ -382,7 +382,6 @@ int main(int argc, char **argv) {
       /* read from the line */
       krb5_data msg, encmsg;
       char *foobuff;
-      int j, x, y;
 
       foobuff=(char *)malloc(1024);
       foobuff=gets(foobuff);
