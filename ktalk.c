@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -171,7 +172,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Could not resolve hostname %s\n", hostname);
     exit(1);
   }
-  local_address.contents=(char *) malloc(sizeof(unsigned long));
+  local_address.contents=malloc(sizeof(unsigned long));
   memcpy(local_address.contents, lhent->h_addr, sizeof(unsigned long));
 
   /* get the foreign address */
@@ -183,13 +184,13 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Could not resolve hostname %s\n", argv[2]);
       exit(1);
     }
-    foreign_address.contents=(char *) malloc(sizeof(unsigned long));
+    foreign_address.contents=malloc(sizeof(unsigned long));
     memcpy(foreign_address.contents, fhent->h_addr, sizeof(unsigned long));
   } else if (mode == MODE_SERVER) {
     struct sockaddr_in *foo;
     
     foo=(struct sockaddr_in *) &faddr;
-    foreign_address.contents=(char *) malloc(sizeof(unsigned long));
+    foreign_address.contents=malloc(sizeof(unsigned long));
     memcpy(foreign_address.contents, &(foo->sin_addr), sizeof(unsigned long));
   }
 
@@ -225,14 +226,14 @@ int main(int argc, char **argv) {
 
 
     /* read the mk_req data sent by the client */
-    msg.data=(char *) malloc(1024);
+    msg.data=malloc(1024);
     msg.length=netreaddata(newsockfd, msg.data);
     if (debug) printf("read message, length was %i\n", msg.length);
     i=krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
     if (debug) printf("read message with rd_req, return was %i\n", i);
     free(msg.data);
 
-    fprincipal=(char *)malloc(1024);
+    fprincipal=malloc(1024);
     krb5_unparse_name(context, inticket->enc_part2->client, &fprincipal);
     strcat(startupmsg, "Foreign principal authenticates as ");
     strcat(startupmsg, fprincipal);
@@ -265,7 +266,7 @@ int main(int argc, char **argv) {
     */
     
     /* read the ticket sent by the server */
-    tkt_data.data=(char *) malloc(1024);
+    tkt_data.data=malloc(1024);
     tkt_data.length=netreaddata(newsockfd, tkt_data.data);
     if (debug) printf("got the ticket, length was %i\n", tkt_data.length);
 
@@ -353,7 +354,7 @@ int main(int argc, char **argv) {
     if (FD_ISSET(newsockfd, &fdset)) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
-      encmsg.data=(char *) malloc(1024);
+      encmsg.data=malloc(1024);
       encmsg.length=netreaddata(newsockfd, encmsg.data);
       if (debug) {
 	krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
@@ -384,7 +385,7 @@ int main(int argc, char **argv) {
       krb5_data msg, encmsg;
       char *foobuff;
 
-      foobuff=(char *)malloc(1024);
+      foobuff=malloc(1024);
       foobuff=gets(foobuff);
 
       /* we have a whole line now, send it off */ /* this is duplicated code from below */
@@ -483,7 +484,7 @@ int netreadlen(int fd) {
   char *ptr, *ptr2;
   int ret;
   
-  ptr=ptr2=(char *) malloc(1024);
+  ptr=ptr2=malloc(1024);
   
  for (;;) {
     ret=netread(fd, ptr2, 1);
@@ -547,7 +548,7 @@ void send_connect_message(char *recip, int port, char *execstr) {
       return;
     }
 
-    foo=(char *) malloc(10);
+    foo=malloc(10);
     sprintf(foo, "%i", port);
     i=execlp(execstr, execstr, sender, hostname, foo);
     if (i) {
