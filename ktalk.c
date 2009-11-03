@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -51,8 +52,20 @@ void kill_and_die();
 #define MAXHOSTNAMELEN 256
 #endif
 
-int newsockfd, curs_start, connest, use_curses, debug;
+int newsockfd, curs_start, connest, use_curses, debug_flag;
 
+inline void debug(const char *format, ...) {
+  va_list ap;
+  char fmtbuf[1024];
+
+  va_start(ap, format);
+  if (debug_flag) {
+    snprintf(fmtbuf, sizeof(fmtbuf), "DEBUG: %s", format);
+    vfprintf(stderr, fmtbuf, ap);
+  }
+  va_end(ap);
+}
+ 
 int main(int argc, char **argv) {
   int mode, ret, sockfd, i, writebufflen;
   char *execstr;
@@ -75,7 +88,7 @@ int main(int argc, char **argv) {
   krb5_auth_context auth_context;
 
   use_curses=1;
-  debug=0;
+  debug_flag = 0;
   curs_start=0;
   connest=0;
   strcpy(startupmsg, "");
@@ -191,9 +204,8 @@ int main(int argc, char **argv) {
   ret = krb5_unparse_name(context, my_principal, &my_principal_string);
   if (ret)
     com_err(argv[0], ret, "krb5_unparse_name");
-  if (debug)
-    printf("DEBUG: you are %s\n", my_principal_string);
-  
+  debug("you are %s\n", my_principal_string);
+
   /* get our local address */
   local_address.addrtype=ADDRTYPE_INET;
   local_address.length=sizeof(unsigned long);
@@ -274,10 +286,9 @@ int main(int argc, char **argv) {
 
     /* read the mk_req data sent by the client */
     msg.length=netreaddata(newsockfd, &msg.data);
-    if (debug)
-      printf("read message, length was %i\n", msg.length);
+    debug("read message, length was %i\n", msg.length);
     i=krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
-    if (debug) printf("read message with rd_req, return was %i\n", i);
+    debug("read message with rd_req, return was %i\n", i);
     free(msg.data);
 
     fprincipal=malloc(1024);
@@ -309,12 +320,12 @@ int main(int argc, char **argv) {
 
     /* get the principal */
     /*    i=netreaddata(newsockfd, fprincipal);
-    if (debug) printf("got foreign principal %s over the wire\n", fprincipal);
+	  debug("got foreign principal %s over the wire\n", fprincipal);
     */
     
     /* read the ticket sent by the server */
     tkt_data.length=netreaddata(newsockfd, &tkt_data.data);
-    if (debug) printf("got the ticket, length was %i\n", tkt_data.length);
+    debug("got the ticket, length was %i\n", tkt_data.length);
 
     memset(&creds, 0, sizeof(creds));
     
@@ -332,14 +343,14 @@ int main(int argc, char **argv) {
       netkill(newsockfd);
       exit(1);
     }
-    if (debug) printf("Got the user_user ticket!\n");
+    debug("Got the user_user ticket!\n");
 
     /* do the mk_req and send the ticket to the server */
     i=krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY,
 			   NULL, new_creds, &out_ticket);
 
     netwritedata(newsockfd, out_ticket.data, out_ticket.length);
-    if (debug) printf("sent mk req message, return was %i\n", i);
+    debug("sent mk req message, return was %i\n", i);
 
     free(tkt_data.data); 
 
@@ -401,17 +412,13 @@ int main(int argc, char **argv) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
       encmsg.length=netreaddata(newsockfd, &encmsg.data);
-      if (debug) {
-	krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
-	printf("before remote seq is %i\n", seqnumber);
-      }
+      krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
+      debug("before remote seq is %i\n", seqnumber);
       i=krb5_rd_priv(context, auth_context, &encmsg, &msg, NULL);
-      if (debug) {
-	krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
-	printf("after remote seq is %i\n", seqnumber);
-      }
+      krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
+      debug("after remote seq is %i\n", seqnumber);
 
-      if (i && debug) {
+      if (i && debug_flag) {
 	com_err(argv[0], i, "doing rd_priv");
 	continue;
       }
@@ -441,17 +448,15 @@ int main(int argc, char **argv) {
       
       msg.data=foobuff;
       msg.length=strlen(foobuff)+1;
-      if (debug) {
-	krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
-	printf("before local seq is %i\n", seqnumber);
-      }
-      i=krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      if (debug) {
-	krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
-	printf("after local seq is %i\n", seqnumber);
-      }
 
-      if (i && debug) com_err("ktalk", i, "making priv");
+      krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
+      debug("before local seq is %i\n", seqnumber);
+      i=krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
+      krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
+      debug("after local seq is %i\n", seqnumber);
+
+      if (i && debug_flag)
+	com_err("ktalk", i, "making priv");
       netwritedata(newsockfd, encmsg.data, encmsg.length);
       free(encmsg.data);
     } else if (use_curses==1) {
@@ -488,7 +493,8 @@ int main(int argc, char **argv) {
       msg.data=writebuff;
       msg.length=strlen(writebuff)+1;
       i=krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      if (i && debug) com_err("uu-server", i, "making priv");
+      if (i && debug_flag)
+	com_err("uu-server", i, "making priv");
       netwritedata(newsockfd, encmsg.data, encmsg.length);
       writebufflen=0;
       free(encmsg.data);
@@ -565,7 +571,8 @@ void netwritedata(int fd, char *ptr, int nbytes) {
 
 void netkill(int fd) {
   /* bad hack, i know.  I won't let you type binary characters anyway :-) */
-  if (debug && !use_curses) printf("Sent kill message\n");
+  if (!use_curses)
+    debug("Sent kill message\n");
   netwritedata(fd, "\0\0\0Destruct\0", 12);
 }
 
@@ -653,7 +660,8 @@ void send_connect_message(char *recip, int port, char *execstr) {
 
 
 void leave() {
-  if (debug && !use_curses) printf("going to leave(), connest is %i\n", connest);
+  if (!use_curses)
+    debug("going to leave(), connest is %i\n", connest);
   if (curs_start) endwin();
   exit(0);
 }
