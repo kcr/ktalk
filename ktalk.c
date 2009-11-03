@@ -569,10 +569,11 @@ void send_connect_message(char *recip, int port, char *execstr) {
   char *list[2];
   char msg[2048];
   char *sender, *foo;
-  int i;
+  int ret;
 
   gethostname(hostname, MAXHOSTNAMELEN);
-  if (!strcasecmp(hostname+(strlen(hostname)-8), ".mit.edu")) *(hostname+(strlen(hostname)-8))='\0';
+  if (strcasecmp(&hostname[strlen(hostname) - 8], ".mit.edu") == 0)
+    hostname[strlen(hostname) - 8] = '\0';
   
   ZInitialize();
 
@@ -582,24 +583,26 @@ void send_connect_message(char *recip, int port, char *execstr) {
     *foo='\0';
 
   if (execstr) {
-    i=fork();
-    if (i) {
-      wait3(NULL, WNOHANG, NULL);
-      return;
+    ret = fork();
+    if (ret < 0) {
+      fprintf(stderr, "could not fork to send connection message\n");
+    } else if (ret > 0) {
+	wait3(NULL, WNOHANG, NULL);
+	return;
+    } else { /* ret == 0; child */
+      foo = malloc(10);
+      sprintf(foo, "%i", port);
+      ret = execlp(execstr, execstr, sender, hostname, foo, NULL);
+      if (ret) {
+	fprintf(stderr, "could not exec %s to send connection message\n", execstr);
+	leave();
+      }
+      /*NOTREACHED*/
     }
+  }
 
-    foo=malloc(10);
-    sprintf(foo, "%i", port);
-    i=execlp(execstr, execstr, sender, hostname, foo, NULL);
-    if (i) {
-      fprintf(stderr, "could not exec %s to send connection message\n", execstr);
-      leave();
-    }
-    free(foo);
-    return;
-  }  
-
-  sprintf(msg, "This user is requesting a krb5 user to user encrypted communication channel.\n"
+  snprintf(msg, 2048,
+	   "This user is requesting a krb5 user to user encrypted communication channel.\n"
 	  "To open the channel type:\n"
 	  "\n   add ktools\n"
 	  "   ktalk %s %s %i\n"
