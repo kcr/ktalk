@@ -40,7 +40,7 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 int netread(int fd, char *ptr, int nbytes);
 int netwrite(int fd, char *ptr, int nbytes);
 int netreadlen(int fd);
-int netreaddata(int fd, char *ptr);
+int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(char *recip, int port, char *estr);
 void netkill(int fd);
@@ -248,8 +248,7 @@ int main(int argc, char **argv) {
 
 
     /* read the mk_req data sent by the client */
-    msg.data=malloc(1024);
-    msg.length=netreaddata(newsockfd, msg.data);
+    msg.length=netreaddata(newsockfd, &msg.data);
     if (debug) printf("read message, length was %i\n", msg.length);
     i=krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
     if (debug) printf("read message with rd_req, return was %i\n", i);
@@ -288,8 +287,7 @@ int main(int argc, char **argv) {
     */
     
     /* read the ticket sent by the server */
-    tkt_data.data=malloc(1024);
-    tkt_data.length=netreaddata(newsockfd, tkt_data.data);
+    tkt_data.length=netreaddata(newsockfd, &tkt_data.data);
     if (debug) printf("got the ticket, length was %i\n", tkt_data.length);
 
     memset ((char*)&creds, 0, sizeof(creds));
@@ -376,8 +374,7 @@ int main(int argc, char **argv) {
     if (FD_ISSET(newsockfd, &fdset)) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
-      encmsg.data=malloc(1024);
-      encmsg.length=netreaddata(newsockfd, encmsg.data);
+      encmsg.length=netreaddata(newsockfd, &encmsg.data);
       if (debug) {
 	krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
 	printf("before remote seq is %i\n", seqnumber);
@@ -506,20 +503,28 @@ int netwrite(int fd, char *ptr, int nbytes) {
 
 
 int netreadlen(int fd) {
-  char *ptr, *ptr2;
+  char *ptr;
   int ret;
+  int off = 0;
   
-  ptr=ptr2=malloc(1024);
+  ptr = malloc(1024);
   
- for (;;) {
-    ret=netread(fd, ptr2, 1);
-    if (ret == 0) continue;
-    if (*ptr2 == '\0') break;
-    ptr2++;
-  }
- ret=atoi(ptr);
- free(ptr);
- return(ret);
+  do {
+    ret = netread(fd, &ptr[off], 1);
+    if (ret < 0) {
+      free(ptr);
+      return -1;
+    }
+    if (ret == 0)
+      continue;
+    if (ptr[off] == '\0')
+      break;
+    off++;
+  } while (off < 1024);
+  
+  ret=atoi(ptr);
+  free(ptr);
+  return(ret);
 }
 
 
@@ -539,15 +544,22 @@ void netkill(int fd) {
 }
 
 
-int netreaddata(int fd, char *ptr) {
+int netreaddata(int fd, char **p) {
   int i;
+  char *ptr;
 
-  i=netreadlen(fd);
+  i = netreadlen(fd);
+  if (i <= 0 || i > 1024)
+    return -1;
+  
+  ptr = malloc(i);
   netread(fd, ptr, i);
-  if ((i == 12) && !memcmp("\0\0\0Destruct\0", ptr, i)) {
+  if (i == 12 && memcmp("\0\0\0Destruct\0", ptr, i) == 0)
     leave();
-  }
-  return(i);
+
+  *p = ptr;
+  
+  return i;
 }
 
 
@@ -562,9 +574,12 @@ void send_connect_message(char *recip, int port, char *execstr) {
   gethostname(hostname, MAXHOSTNAMELEN);
   if (!strcasecmp(hostname+(strlen(hostname)-8), ".mit.edu")) *(hostname+(strlen(hostname)-8))='\0';
   
-  sender=(char *)strdup(ZGetSender());
-  foo=(char *) strstr(sender, "@ATHENA.MIT.EDU");
-  if (foo) *foo='\0';
+  ZInitialize();
+
+  sender = strdup(ZGetSender());
+  foo = strstr(sender, "@ATHENA.MIT.EDU");
+  if (foo)
+    *foo='\0';
 
   if (execstr) {
     i=fork();
@@ -591,7 +606,6 @@ void send_connect_message(char *recip, int port, char *execstr) {
 	  "\nat the Athena%% prompt.\n",
 	  sender, hostname, port);
 
-  ZInitialize();
   memset(&notice, 0, sizeof(notice));
   notice.z_kind=ACKED; 
   notice.z_class="message";
