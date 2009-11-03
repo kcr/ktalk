@@ -179,11 +179,20 @@ int main(int argc, char **argv) {
 
   /* kerberos set up for both client and server */
   putenv("KRB5_KTNAME=/dev/null"); /* kerberos V can kiss my pasty white ass */
-  krb5_init_context(&context);
-  krb5_cc_default(context, &ccache);
-  krb5_cc_get_principal(context, ccache, &my_principal);
-  krb5_unparse_name(context, my_principal, &my_principal_string);
-  if (debug) printf("DEBUG: you are %s\n", my_principal_string);
+  ret = krb5_init_context(&context);
+  if (ret)
+    com_err(argv[0], ret, "krb5_init_context");
+  ret = krb5_cc_default(context, &ccache);
+  if (ret)
+    com_err(argv[0], ret, "krb5_cc_default");
+  ret = krb5_cc_get_principal(context, ccache, &my_principal);
+  if (ret)
+    com_err(argv[0], ret, "krb5_cc_get_principal");
+  ret = krb5_unparse_name(context, my_principal, &my_principal_string);
+  if (ret)
+    com_err(argv[0], ret, "krb5_unparse_name");
+  if (debug)
+    printf("DEBUG: you are %s\n", my_principal_string);
   
   /* get our local address */
   local_address.addrtype=ADDRTYPE_INET;
@@ -226,30 +235,47 @@ int main(int argc, char **argv) {
     
     /* get the krbtgt/REALM@REALM from the cache into out_creds */
     memset(&in_creds, 0, sizeof(in_creds));
-    krb5_cc_get_principal(context, ccache, &in_creds.client);
-    krb5_build_principal_ext(context, &in_creds.server,
-			     krb5_princ_realm(context, in_creds.client)->length,
-			     krb5_princ_realm(context, in_creds.client)->data,
-			     6, "krbtgt",
-			     krb5_princ_realm(context, in_creds.client)->length,
-			     krb5_princ_realm(context, in_creds.client)->data,
-			     0);
-    krb5_get_credentials(context, KRB5_GC_CACHED, ccache, 
-			 &in_creds, &out_creds);
+    ret = krb5_cc_get_principal(context, ccache, &in_creds.client);
+    if (ret)
+      com_err(argv[0], ret, "krb5_cc_get_principal");
+
+    ret = krb5_build_principal_ext(context, &in_creds.server,
+				   krb5_princ_realm(context, in_creds.client)->length,
+				   krb5_princ_realm(context, in_creds.client)->data,
+				   6, "krbtgt",
+				   krb5_princ_realm(context, in_creds.client)->length,
+				   krb5_princ_realm(context, in_creds.client)->data,
+				   0);
+    if (ret)
+      com_err(argv[0], ret, "krb5_build_principal_ext");
+
+    ret = krb5_get_credentials(context, KRB5_GC_CACHED, ccache, 
+			       &in_creds, &out_creds);
+    if (ret)
+      com_err(argv[0], ret, "krb5_get_credentials");
 
     /* send over the user_user ticket */
     netwritedata(newsockfd, out_creds->ticket.data, out_creds->ticket.length);
 
     /* initialize the auth_context */
-    krb5_auth_con_init(context, &auth_context);
-    krb5_auth_con_setflags(context, auth_context, KRB5_AUTH_CONTEXT_DO_SEQUENCE);
-    krb5_auth_con_setaddrs(context, auth_context, &local_address, &foreign_address);
-    krb5_auth_con_setuseruserkey(context, auth_context, &out_creds->keyblock);
+    ret = krb5_auth_con_init(context, &auth_context);
+    if (ret)
+      com_err(argv[0], ret, "krb5_auth-con_init");
+    ret = krb5_auth_con_setflags(context, auth_context, KRB5_AUTH_CONTEXT_DO_SEQUENCE);
+    if (ret)
+      com_err(argv[0], ret, "krb5_auth_con_setflags");
+    ret = krb5_auth_con_setaddrs(context, auth_context, &local_address, &foreign_address);
+    if (ret)
+      com_err(argv[0], ret, "krb5_auth_con_setaddrs");
+    ret = krb5_auth_con_setuseruserkey(context, auth_context, &out_creds->keyblock);
+    if (ret)
+      com_err(argv[0], ret, "krb5_auth_con_setuseruserkey");
 
 
     /* read the mk_req data sent by the client */
     msg.length=netreaddata(newsockfd, &msg.data);
-    if (debug) printf("read message, length was %i\n", msg.length);
+    if (debug)
+      printf("read message, length was %i\n", msg.length);
     i=krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
     if (debug) printf("read message with rd_req, return was %i\n", i);
     free(msg.data);
