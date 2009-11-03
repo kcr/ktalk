@@ -1,7 +1,7 @@
 CC=gcc
 
 LIBS=-lzephyr $(shell krb5-config --libs) -lcurses
-CFLAGS=-Wall $(shell krb5-config --cflags)
+CFLAGS=-O -Wall $(shell krb5-config --cflags)
 
 #Solaris
 #LIBS=-L/usr/athena/lib -lcurses -lzephyr -lkrb4 -lkrb5 -lcrypto -ldes425 -lsocket -lnsl -lcom_err

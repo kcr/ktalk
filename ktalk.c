@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
   size_t faddrlen;
   char hostname[MAXHOSTNAMELEN+1];
   unsigned short port;
-  WINDOW *sendwin, *receivewin, *sepwin;
+  WINDOW *sendwin = NULL, *receivewin = NULL, *sepwin = NULL;
   fd_set fdset;
   struct sigaction sigact;
   char writebuff[1024], startupmsg[2048];
