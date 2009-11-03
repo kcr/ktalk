@@ -48,6 +48,10 @@ void netkill(int fd);
 void leave();
 void kill_and_die();
 
+void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
+void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
+void debug_localseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
+
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 256
 #endif
@@ -83,7 +87,6 @@ int main(int argc, char **argv) {
   fd_set fdset;
   struct sigaction sigact;
   char writebuff[1024], startupmsg[2048];
-  krb5_int32 seqnumber;
   krb5_principal my_principal;
   krb5_auth_context auth_context;
 
@@ -243,7 +246,6 @@ int main(int argc, char **argv) {
     krb5_data msg;
     krb5_principal clprinc;
     char *fprincipal, *clprincstr;
-    int i;
     
     /* get the krbtgt/REALM@REALM from the cache into out_creds */
     memset(&in_creds, 0, sizeof(in_creds));
@@ -270,15 +272,7 @@ int main(int argc, char **argv) {
     netwritedata(newsockfd, out_creds->ticket.data, out_creds->ticket.length);
 
     /* initialize the auth_context */
-    ret = krb5_auth_con_init(context, &auth_context);
-    if (ret)
-      com_err(argv[0], ret, "krb5_auth-con_init");
-    ret = krb5_auth_con_setflags(context, auth_context, KRB5_AUTH_CONTEXT_DO_SEQUENCE);
-    if (ret)
-      com_err(argv[0], ret, "krb5_auth_con_setflags");
-    ret = krb5_auth_con_setaddrs(context, auth_context, &local_address, &foreign_address);
-    if (ret)
-      com_err(argv[0], ret, "krb5_auth_con_setaddrs");
+    auth_con_setup(context, &auth_context, &local_address, &foreign_address);
     ret = krb5_auth_con_setuseruserkey(context, auth_context, &out_creds->keyblock);
     if (ret)
       com_err(argv[0], ret, "krb5_auth_con_setuseruserkey");
@@ -287,19 +281,27 @@ int main(int argc, char **argv) {
     /* read the mk_req data sent by the client */
     msg.length=netreaddata(newsockfd, &msg.data);
     debug("read message, length was %i\n", msg.length);
-    i=krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
-    debug("read message with rd_req, return was %i\n", i);
+    ret = krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
+    debug("read message with rd_req, return was %i\n", ret);
+    if (ret)
+      com_err(argv[0], ret, "krb5_rd_req");
     free(msg.data);
 
     fprincipal=malloc(1024);
-    krb5_unparse_name(context, inticket->enc_part2->client, &fprincipal);
+    ret = krb5_unparse_name(context, inticket->enc_part2->client, &fprincipal);
+    if (ret)
+      com_err(argv[0], ret, "krb5_unparse_name");
     strcat(startupmsg, "Foreign principal authenticates as ");
     strcat(startupmsg, fprincipal);
     strcat(startupmsg, "\n\n");
 
     /* this is a little wrong, the argv[1] may have @ATHENA.MIT.EDU */ /***** need to fix *****/
-    krb5_parse_name(context, argv[1], &clprinc);
-    krb5_unparse_name(context, clprinc, &clprincstr);
+    ret = krb5_parse_name(context, argv[1], &clprinc);
+    if (ret)
+      com_err(argv[0], ret, "krb5_parse_name");
+    ret = krb5_unparse_name(context, clprinc, &clprincstr);
+    if (ret)
+      com_err(argv[0], ret, "krb5_unparse_name");
     if (strcasecmp(fprincipal, clprincstr)) {
       strcat(startupmsg,"WARNING! This is not the principal you specified on the\n");
       strcat(startupmsg,"command line.  An encrypted session will be established anyway\n");
@@ -312,11 +314,8 @@ int main(int argc, char **argv) {
     krb5_data tkt_data, out_ticket;
     krb5_creds *new_creds, creds;
     /* char fprincipal[1024]; */
-    int i;
 
-    krb5_auth_con_init(context, &auth_context);
-    krb5_auth_con_setflags(context, auth_context, KRB5_AUTH_CONTEXT_DO_SEQUENCE);
-    krb5_auth_con_setaddrs(context, auth_context, &local_address, &foreign_address);
+    auth_con_setup(context, &auth_context, &local_address, &foreign_address);
 
     /* get the principal */
     /*    i=netreaddata(newsockfd, fprincipal);
@@ -330,27 +329,33 @@ int main(int argc, char **argv) {
     memset(&creds, 0, sizeof(creds));
     
     /* parse the foreign principal into creds.server */
-    krb5_parse_name(context, argv[1], &creds.server);    
+    ret = krb5_parse_name(context, argv[1], &creds.server);    
+    if (ret)
+      com_err(argv[0], ret, "krb5_parse_name");
     /* insert our own principal in creds.client */
-    krb5_cc_get_principal(context, ccache, &creds.client);
+    ret = krb5_cc_get_principal(context, ccache, &creds.client);
+    if (ret)
+      com_err(argv[0], ret, "krb5_cc_get_principal");
     
     /* get user_user ticket */
     creds.second_ticket = tkt_data;
 
-    i=krb5_get_credentials(context, KRB5_GC_USER_USER, ccache, &creds, &new_creds);
-    if (i) {
-      com_err(argv[0], i, "getting user to user credentials");
+    ret = krb5_get_credentials(context, KRB5_GC_USER_USER, ccache, &creds, &new_creds);
+    if (ret) {
+      com_err(argv[0], ret, "getting user to user credentials");
       netkill(newsockfd);
       exit(1);
     }
     debug("Got the user_user ticket!\n");
 
     /* do the mk_req and send the ticket to the server */
-    i=krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY,
-			   NULL, new_creds, &out_ticket);
+    ret = krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY,
+			       NULL, new_creds, &out_ticket);
+    if (ret)
+      com_err(argv[0], ret, "krb5_mk_req_extended");
 
     netwritedata(newsockfd, out_ticket.data, out_ticket.length);
-    debug("sent mk req message, return was %i\n", i);
+    debug("sent mk req message, return was %i\n", ret);
 
     free(tkt_data.data); 
 
@@ -395,7 +400,6 @@ int main(int argc, char **argv) {
 
 
   for (;;) {
-    int i;
     struct timeval timeout;
 
     timeout.tv_sec=0;
@@ -412,14 +416,12 @@ int main(int argc, char **argv) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
       encmsg.length=netreaddata(newsockfd, &encmsg.data);
-      krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
-      debug("before remote seq is %i\n", seqnumber);
-      i=krb5_rd_priv(context, auth_context, &encmsg, &msg, NULL);
-      krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
-      debug("after remote seq is %i\n", seqnumber);
+      debug_remoteseq(context, auth_context, "before");
+      ret = krb5_rd_priv(context, auth_context, &encmsg, &msg, NULL);
+      debug_remoteseq(context, auth_context, "after");
 
-      if (i && debug_flag) {
-	com_err(argv[0], i, "doing rd_priv");
+      if (ret /* && debug_flag */) {
+	com_err(argv[0], ret, "krb5_rd_priv");
 	continue;
       }
 	
@@ -449,14 +451,12 @@ int main(int argc, char **argv) {
       msg.data=foobuff;
       msg.length=strlen(foobuff)+1;
 
-      krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
-      debug("before local seq is %i\n", seqnumber);
-      i=krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
-      debug("after local seq is %i\n", seqnumber);
+      debug_localseq(context, auth_context, "before");
+      ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
+      debug_localseq(context, auth_context, "after");
 
-      if (i && debug_flag)
-	com_err("ktalk", i, "making priv");
+      if (ret /*&& debug_flag*/)
+	com_err("ktalk", ret, "krb5_mk_priv");
       netwritedata(newsockfd, encmsg.data, encmsg.length);
       free(encmsg.data);
     } else if (use_curses==1) {
@@ -492,9 +492,9 @@ int main(int argc, char **argv) {
       *(writebuff+writebufflen)='\0';
       msg.data=writebuff;
       msg.length=strlen(writebuff)+1;
-      i=krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      if (i && debug_flag)
-	com_err("uu-server", i, "making priv");
+      ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
+      if (ret /*&& debug_flag */)
+	com_err("uu-server", ret, "krb5_mk_priv");
       netwritedata(newsockfd, encmsg.data, encmsg.length);
       writebufflen=0;
       free(encmsg.data);
@@ -670,8 +670,48 @@ void kill_and_die() {
   if (connest) netkill(newsockfd);
   leave();
 }
-
-/*
+
+void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address) {
+  int ret;
+
+  /* initialize the auth_context */
+  ret = krb5_auth_con_init(context, auth_context);
+  if (ret)
+    com_err("ktalk", ret, "krb5_auth-con_init");
+
+  ret = krb5_auth_con_setflags(context, *auth_context, KRB5_AUTH_CONTEXT_DO_SEQUENCE);
+  if (ret)
+    com_err("ktalk", ret, "krb5_auth_con_setflags");
+
+  ret = krb5_auth_con_setaddrs(context, *auth_context, local_address, foreign_address);
+  if (ret)
+    com_err("ktalk", ret, "krb5_auth_con_setaddrs");
+}
+
+void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const char *whence) {
+  krb5_int32 seqnumber;
+  int ret;
+
+  if (debug_flag) {
+    ret = krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
+    if (ret)
+      com_err("ktalk", ret, "krb5_auth_con_getremoteseqnumber");
+    debug("%s remote seq is %i\n", whence, seqnumber);
+  }
+}
+
+void debug_localseq(krb5_context context, krb5_auth_context auth_context, const char *whence) {
+  krb5_int32 seqnumber;
+  int ret;
+
+  if (debug_flag) {
+    ret = krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
+    if (ret)
+      com_err("ktalk", ret, "krb5_auth_con_getlocalseqnumber");
+    debug("%s local seq is %i\n", whence, seqnumber);
+  }
+}
+/*
  * Local Variables:
  * mode:C
  * c-basic-offset:2
