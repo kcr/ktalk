@@ -20,6 +20,8 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -406,7 +408,10 @@ int main(int argc, char **argv) {
       char *foobuff;
 
       foobuff=malloc(1024);
-      foobuff=gets(foobuff);
+      fgets(foobuff, 1024, stdin);
+      if (foobuff[strlen(foobuff) - 1] == '\n')
+	foobuff[strlen(foobuff) - 1] = 0;
+
 
       /* we have a whole line now, send it off */ /* this is duplicated code from below */
       strcat(foobuff, "\n");
@@ -554,7 +559,7 @@ void send_connect_message(char *recip, int port, char *execstr) {
   char *sender, *foo;
   int i;
 
-  gethostname(&hostname, MAXHOSTNAMELEN);
+  gethostname(hostname, MAXHOSTNAMELEN);
   if (!strcasecmp(hostname+(strlen(hostname)-8), ".mit.edu")) *(hostname+(strlen(hostname)-8))='\0';
   
   sender=(char *)strdup(ZGetSender());
@@ -570,7 +575,7 @@ void send_connect_message(char *recip, int port, char *execstr) {
 
     foo=malloc(10);
     sprintf(foo, "%i", port);
-    i=execlp(execstr, execstr, sender, hostname, foo);
+    i=execlp(execstr, execstr, sender, hostname, foo, NULL);
     if (i) {
       fprintf(stderr, "could not exec %s to send connection message\n", execstr);
       leave();
@@ -614,5 +619,10 @@ void kill_and_die() {
   if (connest) netkill(newsockfd);
   leave();
 }
-
-
+
+/*
+ * Local Variables:
+ * mode:C
+ * c-basic-offset:2
+ * End:
+ */
