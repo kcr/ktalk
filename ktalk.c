@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
       exit(2);
     }
 
-    memset((char *) &laddr, 0, sizeof(laddr));
+    memset(&laddr, 0, sizeof(laddr));
     laddr.sin_family=AF_INET;
     laddr.sin_addr.s_addr=htonl(INADDR_ANY);
     laddr.sin_port=htons(port);
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
     send_connect_message(argv[1], port, execstr);
 
     printf("waiting for connection on port %i .... \n", port);
-    memset((char *) &faddr, 0, sizeof(faddr));
+    memset(&faddr, 0, sizeof(faddr));
     faddrlen=sizeof(faddr);
     newsockfd = accept(sockfd, (struct sockaddr *) &faddr, &faddrlen);
     if (newsockfd < 0) {
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Could not resolve hostname %s\n", argv[2]);
       exit(1);
     }
-    memset((char *) &faddr, 0, sizeof(faddr));
+    memset(&faddr, 0, sizeof(faddr));
     /* memcpy(&foreignhostaddr, fhent->h_addr, sizeof(fhent->h_addr)); */
     memcpy(&foreignhostaddr, fhent->h_addr, fhent->h_length);
     faddr.sin_family=AF_INET;
@@ -610,13 +610,13 @@ void send_connect_message(char *recip, int port, char *execstr) {
   notice.z_kind=ACKED; 
   notice.z_class="message";
   notice.z_class_inst="personal";
-  notice.z_recipient=(char *)strdup(recip);
+  notice.z_recipient = strdup(recip);
   notice.z_default_format="Class $class, Instance $instance:\nTo: @bold($recipient) at $time $date\nFrom: @bold{$1 <$sender>}\n\n$2"; 
   notice.z_sender=ZGetSender();
   notice.z_opcode="";
   
   list[0]="Advertise here";
-  list[1]=(char *)strdup(msg);
+  list[1] = strdup(msg);
   
   ZSendList(&notice, list, 2, ZAUTH);
   ZFreeNotice(&notice);
