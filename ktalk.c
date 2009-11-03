@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
     int i;
     
     /* get the krbtgt/REALM@REALM from the cache into out_creds */
-    memset ((char*)&in_creds, 0, sizeof(in_creds));
+    memset(&in_creds, 0, sizeof(in_creds));
     krb5_cc_get_principal(context, ccache, &in_creds.client);
     krb5_build_principal_ext(context, &in_creds.server,
 			     krb5_princ_realm(context, in_creds.client)->length,
@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
     tkt_data.length=netreaddata(newsockfd, &tkt_data.data);
     if (debug) printf("got the ticket, length was %i\n", tkt_data.length);
 
-    memset ((char*)&creds, 0, sizeof(creds));
+    memset(&creds, 0, sizeof(creds));
     
     /* parse the foreign principal into creds.server */
     krb5_parse_name(context, argv[1], &creds.server);    
