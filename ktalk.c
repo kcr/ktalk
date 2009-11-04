@@ -51,6 +51,7 @@ void kill_and_die();
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
 void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
 void debug_localseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
+void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock);
 
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 256
@@ -77,11 +78,10 @@ int main(int argc, char **argv) {
   krb5_ccache ccache;
   char *my_principal_string;
   krb5_address local_address, foreign_address;
-  struct hostent *lhent, *fhent;
+  struct hostent *fhent;
   struct sockaddr_in faddr, laddr;
   struct in_addr foreignhostaddr;
-  size_t faddrlen;
-  char hostname[MAXHOSTNAMELEN+1];
+  size_t faddrlen, laddrlen;
   unsigned short port;
   WINDOW *sendwin = NULL, *receivewin = NULL, *sepwin = NULL;
   fd_set fdset;
@@ -210,35 +210,14 @@ int main(int argc, char **argv) {
   debug("you are %s\n", my_principal_string);
 
   /* get our local address */
-  local_address.addrtype=ADDRTYPE_INET;
-  local_address.length=sizeof(unsigned long);
-  gethostname(hostname, MAXHOSTNAMELEN);
-  lhent=gethostbyname(hostname);
-  if(!lhent) {
-    fprintf(stderr, "Could not resolve hostname %s\n", hostname);
-    exit(1);
-  }
-  local_address.contents=malloc(sizeof(unsigned long));
-  memcpy(local_address.contents, lhent->h_addr, sizeof(unsigned long));
+  laddrlen = sizeof(laddr);
+  ret = getsockname(newsockfd, (struct sockaddr *)&laddr, &laddrlen);
+  if (ret != 0)
+    perror("getsockname");
+  sockaddr_to_krb5_address(&local_address, (struct sockaddr *)&laddr);
 
   /* get the foreign address */
-  foreign_address.addrtype=ADDRTYPE_INET;
-  foreign_address.length=sizeof(unsigned long);
-  if (mode == MODE_CLIENT) {
-    fhent=gethostbyname(argv[2]);
-    if (!fhent) {
-      fprintf(stderr, "Could not resolve hostname %s\n", argv[2]);
-      exit(1);
-    }
-    foreign_address.contents=malloc(sizeof(unsigned long));
-    memcpy(foreign_address.contents, fhent->h_addr, sizeof(unsigned long));
-  } else if (mode == MODE_SERVER) {
-    struct sockaddr_in *foo;
-    
-    foo=(struct sockaddr_in *) &faddr;
-    foreign_address.contents=malloc(sizeof(unsigned long));
-    memcpy(foreign_address.contents, &(foo->sin_addr), sizeof(unsigned long));
-  }
+  sockaddr_to_krb5_address(&foreign_address, (struct sockaddr *)&faddr);
 
   if (mode == MODE_SERVER) {
     krb5_creds in_creds, *out_creds;
@@ -709,6 +688,24 @@ void debug_localseq(krb5_context context, krb5_auth_context auth_context, const 
     if (ret)
       com_err("ktalk", ret, "krb5_auth_con_getlocalseqnumber");
     debug("%s local seq is %i\n", whence, seqnumber);
+  }
+}
+
+void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock) {
+  switch (sock->sa_family) {
+  case AF_INET:
+    {
+      struct sockaddr_in *sin = (struct sockaddr_in *)sock;
+
+      k5->addrtype = ADDRTYPE_INET;
+      k5->length = sizeof(sin->sin_addr);
+      k5->contents = malloc(k5->length);
+      memcpy(k5->contents, &sin->sin_addr, k5->length);
+    }
+    break;
+  default:
+    fprintf(stderr, "can't copy address"); /* XXX */
+    break;
   }
 }
 /*
