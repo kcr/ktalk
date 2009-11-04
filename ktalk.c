@@ -328,7 +328,7 @@ int main(int argc, char **argv) {
     debug("Got the user_user ticket!\n");
 
     /* do the mk_req and send the ticket to the server */
-    ret = krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY,
+    ret = krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY|AP_OPTS_MUTUAL_REQUIRED,
 			       NULL, new_creds, &out_ticket);
     if (ret)
       com_err(argv[0], ret, "krb5_mk_req_extended");
