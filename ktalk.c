@@ -85,7 +85,6 @@ int main(int argc, char **argv) {
   krb5_address local_address, foreign_address;
   struct hostent *fhent;
   struct sockaddr_in faddr, laddr;
-  struct in_addr foreignhostaddr;
   size_t faddrlen, laddrlen;
   unsigned short port;
   WINDOW *sendwin = NULL, *receivewin = NULL, *sepwin = NULL;
@@ -195,10 +194,8 @@ int main(int argc, char **argv) {
       exit(1);
     }
     memset(&faddr, 0, sizeof(faddr));
-    /* memcpy(&foreignhostaddr, fhent->h_addr, sizeof(fhent->h_addr)); */
-    memcpy(&foreignhostaddr, fhent->h_addr, fhent->h_length);
+    memcpy(&faddr.sin_addr, fhent->h_addr, sizeof(struct in_addr));
     faddr.sin_family=AF_INET;
-    faddr.sin_addr = foreignhostaddr;
     port=atoi(argv[3]);
     faddr.sin_port=htons(port);
     
