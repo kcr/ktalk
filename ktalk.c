@@ -44,8 +44,8 @@ int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(char *recip, int port, char *estr);
 void netkill(int fd);
-void leave();
-void kill_and_die();
+void leave(void);
+void kill_and_die(int);
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
 void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
@@ -638,14 +638,14 @@ void send_connect_message(char *recip, int port, char *execstr) {
 }
 
 
-void leave() {
+void leave(void) {
   if (!use_curses)
     debug("going to leave(), connest is %i\n", connest);
   if (curs_start) endwin();
   exit(0);
 }
 
-void kill_and_die() {
+void kill_and_die(int sig) {
   if (connest) netkill(newsockfd);
   leave();
 }
