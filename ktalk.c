@@ -38,6 +38,7 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 typedef enum { MODE_SERVER, MODE_CLIENT } ktalk_mode;
 
 int server_open(const char *user, struct sockaddr_in *faddr, char *execstr);
+int client_open(const char *user, const char *host, unsigned short port, struct sockaddr_in *faddr);
 
 int netread(int fd, char *ptr, int nbytes);
 int netwrite(int fd, char *ptr, int nbytes);
@@ -85,7 +86,6 @@ int main(int argc, char **argv) {
   krb5_ccache ccache;
   char *my_principal_string;
   krb5_address local_address, foreign_address;
-  struct hostent *fhent;
   struct sockaddr_in faddr, laddr;
   size_t laddrlen;
   WINDOW *sendwin = NULL, *receivewin = NULL, *sepwin = NULL;
@@ -139,31 +139,7 @@ int main(int argc, char **argv) {
   if (mode == MODE_SERVER) {
     sockfd = server_open(argv[optind], &faddr, execstr);
   } else if (mode == MODE_CLIENT) {
-    unsigned short port;
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-      perror("creating socket");
-      exit(2);
-    }
-
-    fhent=gethostbyname(argv[2]);
-    if (!fhent) {
-      fprintf(stderr, "Could not resolve hostname %s\n", argv[2]);
-      exit(1);
-    }
-    memset(&faddr, 0, sizeof(faddr));
-    memcpy(&faddr.sin_addr, fhent->h_addr, sizeof(struct in_addr));
-    faddr.sin_family=AF_INET;
-    port=atoi(argv[3]);
-    faddr.sin_port=htons(port);
-    
-    ret = connect(sockfd, (struct sockaddr *) &faddr, sizeof(faddr));
-    if (ret != 0) {
-      perror("connecting socket");
-      exit(2);
-    }
-    connest=1;
+    sockfd = client_open(argv[optind], argv[optind + 1], atoi(argv[optind + 2]), &faddr);
   }
   printf("connection establed.\n");
 
@@ -248,7 +224,7 @@ int main(int argc, char **argv) {
     strcat(startupmsg, "\n\n");
 
     /* this is a little wrong, the argv[1] may have @ATHENA.MIT.EDU */ /***** need to fix *****/
-    ret = krb5_parse_name(context, argv[1], &clprinc);
+    ret = krb5_parse_name(context, argv[optind], &clprinc);
     if (ret)
       com_err(argv[0], ret, "krb5_parse_name");
     ret = krb5_unparse_name(context, clprinc, &clprincstr);
@@ -734,6 +710,37 @@ int server_open(const char *user, struct sockaddr_in *faddr, char *execstr) {
   }
   connest = 1;
   close(servsock);
+
+  return fd;
+}
+
+int client_open(const char *user, const char *host, unsigned short port, struct sockaddr_in *faddr) {
+  int fd, ret;
+  extern int h_errno;
+  struct hostent *fhent;
+
+  fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd == -1) {
+    perror("creating socket");
+    exit(2);
+  }
+
+  fhent = gethostbyname(host);
+  if (!fhent) {
+    fprintf(stderr, "Could not resolve hostname %s: %s\n", host, hstrerror(h_errno));
+    exit(1);
+  }
+  memset(faddr, 0, sizeof(faddr));
+  memcpy(&faddr->sin_addr, fhent->h_addr, sizeof(struct in_addr));
+  faddr->sin_family = AF_INET;
+  faddr->sin_port = htons(port);
+
+  ret = connect(fd, (struct sockaddr *)faddr, sizeof(*faddr));
+  if (ret != 0) {
+    perror("connecting socket");
+    exit(2);
+  }
+  connest=1;
 
   return fd;
 }
