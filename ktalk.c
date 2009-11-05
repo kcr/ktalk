@@ -104,10 +104,16 @@ int main(int argc, char **argv) {
   connest=0;
   strcpy(startupmsg, "");
 
-  while((opt = getopt(argc, argv, "e:")) != -1) {
+  while((opt = getopt(argc, argv, "dce:")) != -1) {
     switch(opt) {
     case 'e':
       execstr = optarg;
+      break;
+    case 'd':
+      debug_flag = !debug_flag;
+      break;
+    case 'c':
+      use_curses = !use_curses;
       break;
     default:
       usage(argv[0]);
@@ -124,7 +130,7 @@ int main(int argc, char **argv) {
   default:
     usage(argv[0]);
   }
-  
+
   sigact.sa_handler=kill_and_die;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags=0;
