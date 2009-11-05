@@ -37,12 +37,14 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 typedef enum { MODE_SERVER, MODE_CLIENT } ktalk_mode;
 
+int server_open(const char *user, struct sockaddr_in *faddr, char *execstr);
+
 int netread(int fd, char *ptr, int nbytes);
 int netwrite(int fd, char *ptr, int nbytes);
 int netreadlen(int fd);
 int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
-void send_connect_message(char *recip, int port, char *estr);
+void send_connect_message(const char *recip, int port, char *estr);
 void netkill(int fd);
 void leave(void);
 void kill_and_die(int);
@@ -77,16 +79,15 @@ void usage(const char *whoami) {
  
 int main(int argc, char **argv) {
   ktalk_mode mode;
-  int ret, servsock, i, writebufflen;
-  char *execstr;
+  int ret, i, writebufflen;
+  char *execstr = NULL;
   krb5_context context;
   krb5_ccache ccache;
   char *my_principal_string;
   krb5_address local_address, foreign_address;
   struct hostent *fhent;
   struct sockaddr_in faddr, laddr;
-  size_t faddrlen, laddrlen;
-  unsigned short port;
+  size_t laddrlen;
   WINDOW *sendwin = NULL, *receivewin = NULL, *sepwin = NULL;
   fd_set fdset;
   struct sigaction sigact;
@@ -136,52 +137,10 @@ int main(int argc, char **argv) {
   sigaction(SIGINT, &sigact, NULL);
 
   if (mode == MODE_SERVER) {
-    /* start listening on the first port we can find */
-    port = 2050;
-    servsock = socket(AF_INET, SOCK_STREAM, 0);
-    if (servsock == -1) {
-      perror("creating socket");
-      exit(2);
-    }
-
-    memset(&laddr, 0, sizeof(laddr));
-    laddr.sin_family=AF_INET;
-    laddr.sin_addr.s_addr=htonl(INADDR_ANY);
-    laddr.sin_port=htons(port);
-    
-    while ((ret = bind(servsock, (struct sockaddr *)&laddr, sizeof(laddr))) != 0) {
-      if (errno == EADDRINUSE) {
-	port++;
-	laddr.sin_port=htons(port);
-      } else {
-	fprintf(stderr, "%i\n", ret);
-	perror("binding socket");
-	exit (2);
-      }
-    }
-    
-    ret = listen(servsock, 5);
-    if (ret != 0) {
-      perror("listening on socket");
-      exit(2);
-    }
-
-    send_connect_message(argv[1], port, execstr);
-
-    printf("waiting for connection on port %i .... \n", port);
-    memset(&faddr, 0, sizeof(faddr));
-    faddrlen=sizeof(faddr);
-    sockfd = accept(servsock, (struct sockaddr *)&faddr, &faddrlen);
-    if (sockfd < 0) {
-      perror("accepting connection");
-      fprintf(stderr, "%i\n", errno);
-      exit(0);
-    }
-    connest=1;
-    printf("connection established.\n");
-    close(servsock);
-
+    sockfd = server_open(argv[optind], &faddr, execstr);
   } else if (mode == MODE_CLIENT) {
+    unsigned short port;
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
       perror("creating socket");
@@ -205,8 +164,8 @@ int main(int argc, char **argv) {
       exit(2);
     }
     connest=1;
-    printf("connected.\n");
   }
+  printf("connection establed.\n");
 
   /* kerberos set up for both client and server */
   putenv("KRB5_KTNAME=/dev/null"); /* kerberos V can kiss my pasty white ass */
@@ -588,7 +547,7 @@ int netreaddata(int fd, char **p) {
 }
 
 
-void send_connect_message(char *recip, int port, char *execstr) {
+void send_connect_message(const char *recip, int port, char *execstr) {
   char hostname[MAXHOSTNAMELEN+1];
   ZNotice_t notice;
   char *list[2];
@@ -640,7 +599,7 @@ void send_connect_message(char *recip, int port, char *execstr) {
   notice.z_kind=ACKED; 
   notice.z_class="message";
   notice.z_class_inst="personal";
-  notice.z_recipient = recip;
+  notice.z_recipient = (char *)recip;
   notice.z_default_format="Class $class, Instance $instance:\nTo: @bold($recipient) at $time $date\nFrom: @bold{$1 <$sender>}\n\n$2"; 
   notice.z_sender=ZGetSender();
   notice.z_opcode="";
@@ -723,6 +682,60 @@ void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock) {
     fprintf(stderr, "can't copy address"); /* XXX */
     break;
   }
+}
+
+int server_open(const char *user, struct sockaddr_in *faddr, char *execstr) {
+  int ret, servsock;
+  unsigned short port = 2050;
+  struct sockaddr_in laddr;
+  size_t faddrlen;
+  int fd;
+
+  /* start listening on the first port we can find */
+  port = 2050;
+  servsock = socket(AF_INET, SOCK_STREAM, 0);
+  if (servsock == -1) {
+    perror("creating socket");
+    exit(2);
+  }
+  
+  memset(&laddr, 0, sizeof(laddr));
+  laddr.sin_family = AF_INET;
+  laddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  laddr.sin_port = htons(port);
+  
+  while ((ret = bind(servsock, (struct sockaddr *)&laddr, sizeof(laddr))) != 0) {
+    if (errno == EADDRINUSE) {
+      port++;
+      laddr.sin_port = htons(port);
+    } else {
+      fprintf(stderr, "%i\n", ret);
+      perror("binding socket");
+      exit (2);
+    }
+  }
+  
+  ret = listen(servsock, 5);
+  if (ret != 0) {
+    perror("listening on socket");
+    exit(2);
+  }
+  
+  send_connect_message(user, port, execstr);
+  
+  printf("waiting for connection on port %i .... \n", port);
+  memset(faddr, 0, sizeof(faddr));
+  faddrlen = sizeof(*faddr);
+  fd = accept(servsock, (struct sockaddr *)faddr, &faddrlen);
+  if (fd < 0) {
+    perror("accepting connection");
+    fprintf(stderr, "%i\n", errno);
+    exit(0);
+  }
+  connest = 1;
+  close(servsock);
+
+  return fd;
 }
 /*
  * Local Variables:
