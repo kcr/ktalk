@@ -266,7 +266,6 @@ int main(int argc, char **argv) {
       com_err(argv[0], ret, "krb5_rd_req");
     free(msg.data);
 
-    fprincipal=malloc(1024);
     ret = krb5_unparse_name(context, inticket->enc_part2->client, &fprincipal);
     if (ret)
       com_err(argv[0], ret, "krb5_unparse_name");
@@ -288,7 +287,6 @@ int main(int argc, char **argv) {
     }
     free(fprincipal);
     free(clprincstr);
-    
   } else if (mode == MODE_CLIENT) {
     krb5_data tkt_data, out_ticket;
     krb5_creds *new_creds, creds;
@@ -411,7 +409,7 @@ int main(int argc, char **argv) {
       } else {
 	printf("%s",msg.data);
       }
-      /* free(msg.data); */  /* this is the trouble line */
+      krb5_free_data_contents(context, &msg);
       free(encmsg.data);
     } else if ((use_curses==0) && FD_ISSET(fileno(stdin), &fdset)) {
       /* read from the line */
@@ -621,17 +619,19 @@ void send_connect_message(char *recip, int port, char *execstr) {
 	  "\nat the Athena%% prompt.\n",
 	  sender, hostname, port);
 
+  free(sender);
+
   memset(&notice, 0, sizeof(notice));
   notice.z_kind=ACKED; 
   notice.z_class="message";
   notice.z_class_inst="personal";
-  notice.z_recipient = strdup(recip);
+  notice.z_recipient = recip;
   notice.z_default_format="Class $class, Instance $instance:\nTo: @bold($recipient) at $time $date\nFrom: @bold{$1 <$sender>}\n\n$2"; 
   notice.z_sender=ZGetSender();
   notice.z_opcode="";
   
   list[0]="Advertise here";
-  list[1] = strdup(msg);
+  list[1] = msg;
   
   ZSendList(&notice, list, 2, ZAUTH);
   ZFreeNotice(&notice);
