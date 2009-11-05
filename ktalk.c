@@ -35,8 +35,7 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <curses.h>
 #include <sys/wait.h>
 
-#define MODE_SERVER 1
-#define MODE_CLIENT 2
+typedef enum { MODE_SERVER, MODE_CLIENT } ktalk_mode;
 
 int netread(int fd, char *ptr, int nbytes);
 int netwrite(int fd, char *ptr, int nbytes);
@@ -72,7 +71,8 @@ inline void debug(const char *format, ...) {
 }
  
 int main(int argc, char **argv) {
-  int mode, ret, sockfd, i, writebufflen;
+  ktalk_mode mode;
+  int ret, sockfd, i, writebufflen;
   char *execstr;
   krb5_context context;
   krb5_ccache ccache;
