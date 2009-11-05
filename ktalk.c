@@ -56,7 +56,7 @@ void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock);
 #define MAXHOSTNAMELEN 256
 #endif
 
-int newsockfd, curs_start, connest, use_curses, debug_flag;
+int sockfd, curs_start, connest, use_curses, debug_flag;
 
 inline void debug(const char *format, ...) {
   va_list ap;
@@ -72,7 +72,7 @@ inline void debug(const char *format, ...) {
  
 int main(int argc, char **argv) {
   ktalk_mode mode;
-  int ret, sockfd, i, writebufflen;
+  int ret, servsock, i, writebufflen;
   char *execstr;
   krb5_context context;
   krb5_ccache ccache;
@@ -120,8 +120,8 @@ int main(int argc, char **argv) {
   if (mode == MODE_SERVER) {
     /* start listening on the first port we can find */
     port = 2050;
-    sockfd=socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
+    servsock = socket(AF_INET, SOCK_STREAM, 0);
+    if (servsock == -1) {
       perror("creating socket");
       exit(2);
     }
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     laddr.sin_addr.s_addr=htonl(INADDR_ANY);
     laddr.sin_port=htons(port);
     
-    while ((ret=bind(sockfd, (struct sockaddr *) &laddr, sizeof(laddr))) != 0) {
+    while ((ret = bind(servsock, (struct sockaddr *)&laddr, sizeof(laddr))) != 0) {
       if (errno == EADDRINUSE) {
 	port++;
 	laddr.sin_port=htons(port);
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    ret=listen(sockfd, 5);
+    ret = listen(servsock, 5);
     if (ret != 0) {
       perror("listening on socket");
       exit(2);
@@ -153,18 +153,18 @@ int main(int argc, char **argv) {
     printf("waiting for connection on port %i .... \n", port);
     memset(&faddr, 0, sizeof(faddr));
     faddrlen=sizeof(faddr);
-    newsockfd = accept(sockfd, (struct sockaddr *) &faddr, &faddrlen);
-    if (newsockfd < 0) {
+    sockfd = accept(servsock, (struct sockaddr *)&faddr, &faddrlen);
+    if (sockfd < 0) {
       perror("accepting connection");
       fprintf(stderr, "%i\n", errno);
       exit(0);
     }
     connest=1;
     printf("connection established.\n");
-    close(sockfd);
+    close(servsock);
 
   } else if (mode == MODE_CLIENT) {
-    sockfd=socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
       perror("creating socket");
       exit(2);
@@ -183,12 +183,11 @@ int main(int argc, char **argv) {
     port=atoi(argv[3]);
     faddr.sin_port=htons(port);
     
-    ret=connect(sockfd, (struct sockaddr *) &faddr, sizeof(faddr));
+    ret = connect(sockfd, (struct sockaddr *) &faddr, sizeof(faddr));
     if (ret != 0) {
       perror("connecting socket");
       exit(2);
     }
-    newsockfd = sockfd;
     connest=1;
     printf("connected.\n");
   }
@@ -211,7 +210,7 @@ int main(int argc, char **argv) {
 
   /* get our local address */
   laddrlen = sizeof(laddr);
-  ret = getsockname(newsockfd, (struct sockaddr *)&laddr, &laddrlen);
+  ret = getsockname(sockfd, (struct sockaddr *)&laddr, &laddrlen);
   if (ret != 0)
     perror("getsockname");
   sockaddr_to_krb5_address(&local_address, (struct sockaddr *)&laddr);
@@ -248,7 +247,7 @@ int main(int argc, char **argv) {
       com_err(argv[0], ret, "krb5_get_credentials");
 
     /* send over the user_user ticket */
-    netwritedata(newsockfd, out_creds->ticket.data, out_creds->ticket.length);
+    netwritedata(sockfd, out_creds->ticket.data, out_creds->ticket.length);
 
     /* initialize the auth_context */
     auth_con_setup(context, &auth_context, &local_address, &foreign_address);
@@ -258,7 +257,7 @@ int main(int argc, char **argv) {
 
 
     /* read the mk_req data sent by the client */
-    msg.length=netreaddata(newsockfd, &msg.data);
+    msg.length = netreaddata(sockfd, &msg.data);
     debug("read message, length was %i\n", msg.length);
     ret = krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
     debug("read message with rd_req, return was %i\n", ret);
@@ -295,12 +294,12 @@ int main(int argc, char **argv) {
     auth_con_setup(context, &auth_context, &local_address, &foreign_address);
 
     /* get the principal */
-    /*    i=netreaddata(newsockfd, fprincipal);
+    /*    i=netreaddata(sockfd, fprincipal);
 	  debug("got foreign principal %s over the wire\n", fprincipal);
     */
     
     /* read the ticket sent by the server */
-    tkt_data.length=netreaddata(newsockfd, &tkt_data.data);
+    tkt_data.length = netreaddata(sockfd, &tkt_data.data);
     debug("got the ticket, length was %i\n", tkt_data.length);
 
     memset(&creds, 0, sizeof(creds));
@@ -320,7 +319,7 @@ int main(int argc, char **argv) {
     ret = krb5_get_credentials(context, KRB5_GC_USER_USER, ccache, &creds, &new_creds);
     if (ret) {
       com_err(argv[0], ret, "getting user to user credentials");
-      netkill(newsockfd);
+      netkill(sockfd);
       exit(1);
     }
     debug("Got the user_user ticket!\n");
@@ -331,7 +330,7 @@ int main(int argc, char **argv) {
     if (ret)
       com_err(argv[0], ret, "krb5_mk_req_extended");
 
-    netwritedata(newsockfd, out_ticket.data, out_ticket.length);
+    netwritedata(sockfd, out_ticket.data, out_ticket.length);
     debug("sent mk req message, return was %i\n", ret);
 
     free(tkt_data.data); 
@@ -383,16 +382,16 @@ int main(int argc, char **argv) {
     timeout.tv_usec=10000;
 
     FD_ZERO(&fdset);
-    FD_SET(newsockfd, &fdset);
+    FD_SET(sockfd, &fdset);
     if (!use_curses) {
       FD_SET(fileno(stdin), &fdset);
     }
-    select(newsockfd+1, &fdset, NULL, NULL, &timeout);
+    select(sockfd+1, &fdset, NULL, NULL, &timeout);
 
-    if (FD_ISSET(newsockfd, &fdset)) {
+    if (FD_ISSET(sockfd, &fdset)) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
-      encmsg.length=netreaddata(newsockfd, &encmsg.data);
+      encmsg.length=netreaddata(sockfd, &encmsg.data);
       debug_remoteseq(context, auth_context, "before");
       ret = krb5_rd_priv(context, auth_context, &encmsg, &msg, NULL);
       debug_remoteseq(context, auth_context, "after");
@@ -434,7 +433,7 @@ int main(int argc, char **argv) {
 
       if (ret /*&& debug_flag*/)
 	com_err("ktalk", ret, "krb5_mk_priv");
-      netwritedata(newsockfd, encmsg.data, encmsg.length);
+      netwritedata(sockfd, encmsg.data, encmsg.length);
       free(encmsg.data);
     } else if (use_curses==1) {
       /* read from the sending window */
@@ -472,7 +471,7 @@ int main(int argc, char **argv) {
       ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
       if (ret /*&& debug_flag */)
 	com_err("uu-server", ret, "krb5_mk_priv");
-      netwritedata(newsockfd, encmsg.data, encmsg.length);
+      netwritedata(sockfd, encmsg.data, encmsg.length);
       writebufflen=0;
       free(encmsg.data);
     }
@@ -646,7 +645,8 @@ void leave(void) {
 }
 
 void kill_and_die(int sig) {
-  if (connest) netkill(newsockfd);
+  if (connest)
+    netkill(sockfd);
   leave();
 }
 
