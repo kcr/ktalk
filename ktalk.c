@@ -69,6 +69,11 @@ inline void debug(const char *format, ...) {
   }
   va_end(ap);
 }
+
+void usage(const char *whoami) {
+  fprintf(stderr, "usage: %s [-e messager] <user>\n       %s <user> <host> <port>\n", whoami, whoami);
+  exit(1);
+}
  
 int main(int argc, char **argv) {
   ktalk_mode mode;
@@ -89,6 +94,9 @@ int main(int argc, char **argv) {
   char writebuff[1024], startupmsg[2048];
   krb5_principal my_principal;
   krb5_auth_context auth_context;
+  int opt;
+  extern char *optarg;
+  extern int optind;
 
   use_curses=1;
   debug_flag = 0;
@@ -96,22 +104,27 @@ int main(int argc, char **argv) {
   connest=0;
   strcpy(startupmsg, "");
 
-  if ((argc >= 3) && !strcmp(argv[1], "-e")) {
-    execstr=strdup(argv[2]);
-    argc-=2;
-    argv+=2;
-  } else {
-    execstr=NULL;
+  while((opt = getopt(argc, argv, "e:")) != -1) {
+    switch(opt) {
+    case 'e':
+      execstr = optarg;
+      break;
+    default:
+      usage(argv[0]);
+    }
+  }
+
+  switch(argc - optind) {
+  case 1:
+    mode = MODE_SERVER;
+    break;
+  case 3:
+    mode = MODE_CLIENT;
+    break;
+  default:
+    usage(argv[0]);
   }
   
-  if (argc != 2 && argc != 4) {
-    fprintf(stderr, "usage: %s <user>\n       %s <user> <host> <port>\n", argv[0], argv[0]);
-    exit(1);
-  }
-
-  if (argc == 2) mode = MODE_SERVER;
-  if (argc == 4) mode = MODE_CLIENT;
-
   sigact.sa_handler=kill_and_die;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags=0;
