@@ -137,13 +137,6 @@ int main(int argc, char **argv) {
   sigact.sa_flags=0;
   sigaction(SIGINT, &sigact, NULL);
 
-  if (mode == MODE_SERVER) {
-    sockfd = server_open(argv[optind], &faddr, execstr);
-  } else if (mode == MODE_CLIENT) {
-    sockfd = client_open(argv[optind], argv[optind + 1], atoi(argv[optind + 2]), &faddr);
-  }
-  printf("connection establed.\n");
-
   /* kerberos set up for both client and server */
   putenv("KRB5_KTNAME=/dev/null"); /* kerberos V can kiss my pasty white ass */
   ret = krb5_init_context(&context);
@@ -159,6 +152,13 @@ int main(int argc, char **argv) {
   if (ret)
     fail(ret, "krb5_unparse_name");
   debug("you are %s\n", my_principal_string);
+
+  if (mode == MODE_SERVER) {
+    sockfd = server_open(argv[optind], &faddr, execstr);
+  } else if (mode == MODE_CLIENT) {
+    sockfd = client_open(argv[optind], argv[optind + 1], atoi(argv[optind + 2]), &faddr);
+  }
+  puts("connection established.");
 
   /* get our local address */
   laddrlen = sizeof(laddr);
