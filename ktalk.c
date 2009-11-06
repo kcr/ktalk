@@ -68,7 +68,7 @@ inline void debug(const char *format, ...) {
 
   va_start(ap, format);
   if (debug_flag) {
-    snprintf(fmtbuf, sizeof(fmtbuf), "DEBUG: %s", format);
+    snprintf(fmtbuf, sizeof(fmtbuf), "DEBUG: %s\n", format);
     vfprintf(stderr, fmtbuf, ap);
   }
   va_end(ap);
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
   ret = krb5_unparse_name(context, my_principal, &my_principal_string);
   if (ret)
     fail(ret, "krb5_unparse_name");
-  debug("you are %s\n", my_principal_string);
+  debug("you are %s", my_principal_string);
 
   if (mode == MODE_SERVER) {
     sockfd = server_open(argv[optind], &faddr, execstr);
@@ -209,11 +209,11 @@ int main(int argc, char **argv) {
 
     /* read the mk_req data sent by the client */
     msg.length = netreaddata(sockfd, &msg.data);
-    debug("read message, length was %i\n", msg.length);
+    debug("read message, length was %i", msg.length);
     if (msg.length < 0)
       fail(errno, "reading ticket from client");
     ret = krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
-    debug("read message with rd_req, return was %i\n", ret);
+    debug("read message with rd_req, return was %i", ret);
     if (ret)
       fail(ret, "krb5_rd_req");
     free(msg.data);
@@ -248,12 +248,12 @@ int main(int argc, char **argv) {
 
     /* get the principal */
     /*    i=netreaddata(sockfd, fprincipal);
-	  debug("got foreign principal %s over the wire\n", fprincipal);
+	  debug("got foreign principal %s over the wire", fprincipal);
     */
     
     /* read the ticket sent by the server */
     tkt_data.length = netreaddata(sockfd, &tkt_data.data);
-    debug("got the ticket, length was %i\n", tkt_data.length);
+    debug("got the ticket, length was %i", tkt_data.length);
     if (tkt_data.length < 0)
       fail(errno, "reading ticket from server");
 
@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
     ret = krb5_get_credentials(context, KRB5_GC_USER_USER, ccache, &creds, &new_creds);
     if (ret)
       fail(ret, "getting user to user credentials");
-    debug("Got the user_user ticket!\n");
+    debug("Got the user_user ticket!");
 
     /* do the mk_req and send the ticket to the server */
     ret = krb5_mk_req_extended(context, &auth_context, AP_OPTS_USE_SESSION_KEY|AP_OPTS_MUTUAL_REQUIRED,
@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
       fail(ret, "krb5_mk_req_extended");
 
     netwritedata(sockfd, out_ticket.data, out_ticket.length);
-    debug("sent mk req message, return was %i\n", ret);
+    debug("sent mk req message, return was %i", ret);
 
     free(tkt_data.data); 
   }
@@ -500,7 +500,7 @@ void netwritedata(int fd, char *ptr, int nbytes) {
 void netkill(int fd) {
   /* bad hack, i know.  I won't let you type binary characters anyway :-) */
   if (!use_curses)
-    debug("Sent kill message\n");
+    debug("Sent kill message");
   netwritedata(fd, "\0\0\0Destruct\0", 12);
 }
 
@@ -591,7 +591,7 @@ void send_connect_message(const char *recip, int port, char *execstr) {
 
 void leave(void) {
   if (!use_curses)
-    debug("going to leave(), connest is %i\n", connest);
+    debug("going to leave(), connest is %i", connest);
   if (curs_start) endwin();
   exit(0);
 }
@@ -627,7 +627,7 @@ void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const
     ret = krb5_auth_con_getremoteseqnumber(context, auth_context, &seqnumber);
     if (ret)
       fail(ret, "krb5_auth_con_getremoteseqnumber");
-    debug("%s remote seq is %i\n", whence, seqnumber);
+    debug("%s remote seq is %i", whence, seqnumber);
   }
 }
 
@@ -639,7 +639,7 @@ void debug_localseq(krb5_context context, krb5_auth_context auth_context, const 
     ret = krb5_auth_con_getlocalseqnumber(context, auth_context, &seqnumber);
     if (ret)
       fail(ret, "krb5_auth_con_getlocalseqnumber");
-    debug("%s local seq is %i\n", whence, seqnumber);
+    debug("%s local seq is %i", whence, seqnumber);
   }
 }
 
