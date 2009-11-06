@@ -47,7 +47,6 @@ int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(const char *recip, int port, char *estr);
 void netkill(int fd);
-void leave(void);
 void kill_and_die(int);
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
@@ -509,17 +508,22 @@ void netkill(int fd) {
 
 
 int netreaddata(int fd, char **p) {
-  int i;
+  int i, ret;
   char *ptr;
 
   i = netreadlen(fd);
-  if (i <= 0 || i > 1024)
+  if (i == 0)
+    bye("connection closed");
+  if (i < 0 || i > 1024)
     return -1;
   
   ptr = malloc(i);
-  netread(fd, ptr, i);
-  if (i == 12 && memcmp("\0\0\0Destruct\0", ptr, i) == 0)
-    leave();
+  ret = netread(fd, ptr, i);
+  if (ret <= 0 || (i == 12 && memcmp("\0\0\0Destruct\0", ptr, i) == 0)) {
+    close(fd);
+    connest = 0;
+    bye("connection close by protocol");
+  }
 
   *p = ptr;
   
@@ -559,7 +563,7 @@ void send_connect_message(const char *recip, int port, char *execstr) {
       ret = execlp(execstr, execstr, sender, hostname, foo, NULL);
       if (ret) {
 	fprintf(stderr, "could not exec %s to send connection message\n", execstr);
-	leave();
+	exit(1);
       }
       /*NOTREACHED*/
     }
@@ -591,18 +595,10 @@ void send_connect_message(const char *recip, int port, char *execstr) {
   ZFreeNotice(&notice);
 }
 
-
-void leave(void) {
-  if (!use_curses)
-    debug("going to leave(), connest is %i", connest);
-  if (curs_start) endwin();
-  exit(0);
-}
-
 void kill_and_die(int sig) {
   if (connest)
     netkill(sockfd);
-  leave();
+  bye("exiting due to interrupt");
 }
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address) {
@@ -743,6 +739,13 @@ void fail(long err, const char *context) {
     endwin();
   fprintf(stderr, "%s: %s\n", context, error_message(err));
   exit(1);
+}
+
+void bye(const char *message) {
+  if (curs_start)
+    endwin();
+  puts(message);
+  exit(0);
 }
 /*
  * Local Variables:
