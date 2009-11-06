@@ -479,7 +479,7 @@ int netreadlen(int fd) {
       return -1;
     }
     if (ret == 0)
-      continue;
+      return 0;
     if (ptr[off] == '\0')
       break;
     off++;
