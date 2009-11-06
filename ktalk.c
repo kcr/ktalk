@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
     memset(&creds, 0, sizeof(creds));
     
     /* parse the foreign principal into creds.server */
-    ret = krb5_parse_name(context, argv[1], &creds.server);    
+    ret = krb5_parse_name(context, argv[optind], &creds.server);
     if (ret)
       fail(ret, "krb5_parse_name");
     /* insert our own principal in creds.client */
