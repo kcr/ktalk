@@ -54,6 +54,7 @@ void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const
 void debug_localseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
 void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock);
 void fail(long err, const char *context);
+void bye(const char *message);
 
 #ifndef MAXHOSTNAMELEN
 #define MAXHOSTNAMELEN 256
