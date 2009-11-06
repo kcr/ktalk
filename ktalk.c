@@ -328,15 +328,14 @@ int main(int argc, char **argv) {
 
   for (;;) {
     struct timeval timeout;
+    int msg_done = 0;
 
     timeout.tv_sec=0;
     timeout.tv_usec=10000;
 
     FD_ZERO(&fdset);
     FD_SET(sockfd, &fdset);
-    if (!use_curses) {
-      FD_SET(fileno(stdin), &fdset);
-    }
+    FD_SET(fileno(stdin), &fdset);
     select(sockfd+1, &fdset, NULL, NULL, &timeout);
 
     if (FD_ISSET(sockfd, &fdset)) {
@@ -361,74 +360,61 @@ int main(int argc, char **argv) {
       }
       krb5_free_data_contents(context, &msg);
       free(encmsg.data);
-    } else if ((use_curses==0) && FD_ISSET(fileno(stdin), &fdset)) {
-      /* read from the line */
+    } else if (FD_ISSET(fileno(stdin), &fdset)) {
       krb5_data msg, encmsg;
-      char *foobuff;
 
-      foobuff=malloc(1024);
-      fgets(foobuff, 1024, stdin);
-      if (foobuff[strlen(foobuff) - 1] == '\n')
-	foobuff[strlen(foobuff) - 1] = 0;
+      if (use_curses==0) {
+	/* read from the line */
+	fgets(writebuff, 1024, stdin);
+	msg_done = 1;
+      } else if (use_curses==1) {
+	/* read from the sending window */
+	int j, x, y;
 
+	while((j=wgetch(sendwin)) != ERR) {
+	  if (j == 8 || j == 127) {
+	    getyx(sendwin, y, x);
+	    if (x > 0) {
+	      wmove(sendwin, y, x-1);
+	      waddch(sendwin, ' ');
+	      wmove(sendwin, y, x-1);
+	      wrefresh(sendwin);
+	      writebufflen--;
+	    }
+	    continue;
+	  }
 
-      /* we have a whole line now, send it off */ /* this is duplicated code from below */
-      strcat(foobuff, "\n");
-      
-      msg.data=foobuff;
-      msg.length=strlen(foobuff)+1;
+	  if (j > 127 || (j < 32 && j != 10 && j != 13))
+	    continue;
 
-      debug_localseq(context, auth_context, "before");
-      ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      debug_localseq(context, auth_context, "after");
-
-      if (ret)
-	fail(ret, "krb5_mk_priv");
-
-      netwritedata(sockfd, encmsg.data, encmsg.length);
-      free(encmsg.data);
-    } else if (use_curses==1) {
-      /* read from the sending window */
-      krb5_data msg, encmsg;
-      int j, x, y;
-
-      j=wgetch(sendwin);
-      if (j == ERR) continue;
-      
-      if (j == 8 || j == 127) {
-	getyx(sendwin, y, x);
-	if (x>0) {
-	  wmove(sendwin, y, x-1);
-	  waddch(sendwin, ' ');
-	  wmove(sendwin, y, x-1);
+	  *(writebuff + writebufflen) = j;
+	  writebufflen++;
+	  waddch(sendwin, j);
 	  wrefresh(sendwin);
-	  writebufflen--;
+
+	  if (j != '\n' && j != '\r')
+	    continue;
+
+	  *(writebuff + writebufflen) = '\0';
+	  writebufflen = 0;
+	  msg_done = 1;
 	}
-	continue;
       }
-
-      if (j>127 || ((j<32) && (j!=10) && (j!=13))) continue;
-
-      *(writebuff+writebufflen)=j;
-      writebufflen++;
-      waddch(sendwin, j);
-      wrefresh(sendwin);
-      
-      if (j!='\n' && j!='\r') continue;
-
-      /* we have a whole line now, send it off */
-      *(writebuff+writebufflen)='\0';
-      msg.data=writebuff;
-      msg.length=strlen(writebuff)+1;
-      ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
-      if (ret)
-	fail(ret, "krb5_mk_priv");
-      netwritedata(sockfd, encmsg.data, encmsg.length);
-      writebufflen=0;
-      free(encmsg.data);
+      if (msg_done) {
+	  /* we have a whole line now, send it off */
+	  msg.data = writebuff;
+	  msg.length = strlen(writebuff) + 1;
+	  debug_localseq(context, auth_context, "before");
+	  ret = krb5_mk_priv(context, auth_context, &msg, &encmsg, NULL);
+	  if (ret)
+	    fail(ret, "krb5_mk_priv");
+	  debug_localseq(context, auth_context, "after");
+	  netwritedata(sockfd, encmsg.data, encmsg.length);
+	  free(encmsg.data);
+      }
     }
   }
-  
+
 }
 
 
