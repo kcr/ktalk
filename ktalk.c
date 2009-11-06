@@ -437,9 +437,12 @@ int netread(int fd, char *ptr, int nbytes) {
 
   nleft = nbytes;
   while (nleft > 0) {
-    nread=read(fd, ptr, nleft);
-    if (nread < 0)  return(nread);
-    else if (nread == 0) break;
+    nread = read(fd, ptr, nleft);
+    debug("read returned %d", nread);
+    if (nread < 0)
+      return nread;
+    else if (nread == 0)
+      break;
     nleft -= nread;
     ptr += nread;
   }
