@@ -27,6 +27,7 @@ OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <arpa/nameser.h>
 #include <netdb.h>
 #include <krb5.h>
 #include <errno.h>
@@ -54,10 +55,6 @@ void debug_localseq(krb5_context context, krb5_auth_context auth_context, const 
 void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock);
 void fail(long err, const char *context);
 void bye(const char *message);
-
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
 
 int sockfd, curs_start, use_curses, debug_flag;
 
@@ -507,14 +504,14 @@ int netreaddata(int fd, char **p) {
 
 
 void send_connect_message(const char *recip, int port, char *execstr) {
-  char hostname[MAXHOSTNAMELEN+1];
+  char hostname[NS_MAXDNAME + 1];
   ZNotice_t notice;
   char *list[2];
   char msg[2048];
   char *sender, *foo;
   int ret;
 
-  gethostname(hostname, MAXHOSTNAMELEN);
+  gethostname(hostname, NS_MAXDNAME);
   if (strcasecmp(&hostname[strlen(hostname) - 8], ".mit.edu") == 0)
     hostname[strlen(hostname) - 8] = '\0';
   
