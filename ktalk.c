@@ -46,7 +46,6 @@ int netreadlen(int fd);
 int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(const char *recip, int port, char *estr);
-void netkill(int fd);
 void kill_and_die(int);
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
@@ -60,7 +59,7 @@ void bye(const char *message);
 #define MAXHOSTNAMELEN 256
 #endif
 
-int sockfd, curs_start, connest, use_curses, debug_flag;
+int sockfd, curs_start, use_curses, debug_flag;
 
 inline void debug(const char *format, ...) {
   va_list ap;
@@ -102,7 +101,6 @@ int main(int argc, char **argv) {
   use_curses=1;
   debug_flag = 0;
   curs_start=0;
-  connest=0;
   strcpy(startupmsg, "");
 
   while((opt = getopt(argc, argv, "dce:")) != -1) {
@@ -486,14 +484,6 @@ void netwritedata(int fd, char *ptr, int nbytes) {
 }
 
 
-void netkill(int fd) {
-  /* bad hack, i know.  I won't let you type binary characters anyway :-) */
-  if (!use_curses)
-    debug("Sent kill message");
-  netwritedata(fd, "\0\0\0Destruct\0", 12);
-}
-
-
 int netreaddata(int fd, char **p) {
   int i, ret;
   char *ptr;
@@ -506,10 +496,8 @@ int netreaddata(int fd, char **p) {
   
   ptr = malloc(i);
   ret = netread(fd, ptr, i);
-  if (ret <= 0 || (i == 12 && memcmp("\0\0\0Destruct\0", ptr, i) == 0)) {
-    close(fd);
-    connest = 0;
-    bye("connection close by protocol");
+  if (ret <= 0) {
+    bye("connection closed");
   }
 
   *p = ptr;
@@ -583,8 +571,6 @@ void send_connect_message(const char *recip, int port, char *execstr) {
 }
 
 void kill_and_die(int sig) {
-  if (connest)
-    netkill(sockfd);
   bye("exiting due to interrupt");
 }
 
@@ -687,7 +673,6 @@ int server_open(const char *user, struct sockaddr_in *faddr, char *execstr) {
   if (fd < 0)
     fail(errno, "accepting connection");
 
-  connest = 1;
   close(servsock);
 
   return fd;
@@ -715,8 +700,6 @@ int client_open(const char *user, const char *host, unsigned short port, struct 
   ret = connect(fd, (struct sockaddr *)faddr, sizeof(*faddr));
   if (ret != 0)
     fail(errno, "connecting");
-
-  connest=1;
 
   return fd;
 }
