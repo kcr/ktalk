@@ -203,10 +203,11 @@ int main(int argc, char **argv) {
       fail(ret, "krb5_auth_con_setuseruserkey");
 
     /* read the mk_req data sent by the client */
-    msg.length = netreaddata(sockfd, &msg.data);
-    debug("read message, length was %i", msg.length);
-    if (msg.length < 0)
+    ret = netreaddata(sockfd, &msg.data);
+    debug("read message, length was %i", ret);
+    if (ret < 0)
       fail(errno, "reading ticket from client");
+    msg.length = ret;
     ret = krb5_rd_req(context, &auth_context, &msg, NULL, NULL, NULL, &inticket);
     debug("read message with rd_req, return was %i", ret);
     if (ret)
@@ -247,10 +248,11 @@ int main(int argc, char **argv) {
     */
     
     /* read the ticket sent by the server */
-    tkt_data.length = netreaddata(sockfd, &tkt_data.data);
-    debug("got the ticket, length was %i", tkt_data.length);
-    if (tkt_data.length < 0)
+    ret = netreaddata(sockfd, &tkt_data.data);
+    debug("got the ticket, length was %i", ret);
+    if (ret < 0)
       fail(errno, "reading ticket from server");
+    tkt_data.length = ret;
 
     memset(&creds, 0, sizeof(creds));
     
@@ -336,9 +338,11 @@ int main(int argc, char **argv) {
     if (FD_ISSET(sockfd, &fdset)) {
       /* decrypt and print the incomming message */
       krb5_data msg, encmsg;
-      encmsg.length = netreaddata(sockfd, &encmsg.data);
-      if (encmsg.length < 0)
+      ret = netreaddata(sockfd, &encmsg.data);
+      debug("received message %d bytes", ret);
+      if (ret < 0)
 	fail(errno, "reading chat data from network");
+      encmsg.length = ret;
       debug_remoteseq(context, auth_context, "before");
       ret = krb5_rd_priv(context, auth_context, &encmsg, &msg, NULL);
       debug_remoteseq(context, auth_context, "after");
