@@ -324,16 +324,18 @@ int main(int argc, char **argv) {
 
 
   for (;;) {
-    struct timeval timeout;
     int msg_done = 0;
-
-    timeout.tv_sec=0;
-    timeout.tv_usec=10000;
 
     FD_ZERO(&fdset);
     FD_SET(sockfd, &fdset);
     FD_SET(fileno(stdin), &fdset);
-    select(sockfd+1, &fdset, NULL, NULL, &timeout);
+    ret = select(sockfd+1, &fdset, NULL, NULL, NULL);
+    if (ret < 0) {
+      if (errno == EINTR)
+	continue;
+      else
+	fail(errno, "waiting for data");
+    }
 
     if (FD_ISSET(sockfd, &fdset)) {
       /* decrypt and print the incomming message */
