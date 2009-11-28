@@ -412,14 +412,25 @@ int main(int argc, char **argv) {
 	    getyx(sendwin, y, x);
 	    wmove(sendwin, y, x);
 	  } else if (j == 8 || j == 127) {
-	    getyx(sendwin, y, x);
-	    if (x > 0) {
-	      wmove(sendwin, y, x-1);
+	    if (writebufflen) {
+	      getyx(sendwin, y, x);
+	      if (x == 0) { /* we wrapped */
+		if (y == 0) {
+		  /* we are trying to backspace off the top of the window */
+		  /* so we reprint the line */
+		  waddstr(sendwin, writebuff);
+		  getyx(sendwin, y, x);
+		}
+		if (y > 0) {
+		  y -= 1;
+		  x = COLS;
+		}
+	      }
+	      wmove(sendwin, y, x - 1);
 	      waddch(sendwin, ' ');
-	      wmove(sendwin, y, x-1);
-	      wrefresh(sendwin);
-	      if (writebufflen)
-		writebufflen--;
+	      wmove(sendwin, y, x - 1);
+	      wnoutrefresh(sendwin);
+	      writebufflen--;
 	      writebuff[writebufflen] = 0;
 	    }
 	  } else if (j > 32 || j == 10 || j ==13) {
