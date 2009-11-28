@@ -406,7 +406,12 @@ int main(int argc, char **argv) {
 	int j, x, y;
 
 	while((j = wgetch(sendwin)) != ERR) {
-	  if (j == 8 || j == 127) {
+	  if (j == 12) { /* ^L */
+	    clearok(stdscr, TRUE);
+	    wnoutrefresh(stdscr);
+	    getyx(sendwin, y, x);
+	    wmove(sendwin, y, x);
+	  } else if (j == 8 || j == 127) {
 	    getyx(sendwin, y, x);
 	    if (x > 0) {
 	      wmove(sendwin, y, x-1);
