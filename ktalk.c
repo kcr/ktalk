@@ -48,6 +48,7 @@ int netreaddata(int fd, char **ptr);
 void netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(const char *recip, int port, char *estr);
 void kill_and_die(int);
+void window_change(int);
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address);
 void debug_remoteseq(krb5_context context, krb5_auth_context auth_context, const char *whence);
@@ -57,6 +58,7 @@ void fail(long err, const char *context);
 void bye(const char *message);
 
 int sockfd, curs_start, use_curses, debug_flag;
+int need_resize = 0;
 
 inline void debug(const char *format, ...) {
   va_list ap;
@@ -77,7 +79,7 @@ void usage(const char *whoami) {
  
 int main(int argc, char **argv) {
   ktalk_mode mode;
-  int ret, i, writebufflen;
+  int ret, writebufflen;
   char *execstr = NULL;
   krb5_context context;
   krb5_ccache ccache;
@@ -127,10 +129,12 @@ int main(int argc, char **argv) {
     usage(argv[0]);
   }
 
-  sigact.sa_handler=kill_and_die;
   sigemptyset(&sigact.sa_mask);
-  sigact.sa_flags=0;
+  sigact.sa_flags = 0;
+  sigact.sa_handler = kill_and_die;
   sigaction(SIGINT, &sigact, NULL);
+  sigact.sa_handler = window_change;
+  sigaction(SIGWINCH, &sigact, NULL);
 
   /* kerberos set up for both client and server */
   putenv("KRB5_KTNAME=/dev/null"); /* kerberos V can kiss my pasty white ass */
@@ -298,9 +302,9 @@ int main(int argc, char **argv) {
     writebufflen=0;
 
     /* setup send / receive windows and the seperator */
-    receivewin=newwin(LINES/2-1, COLS, 0, 0);
-    sepwin=newwin(1, COLS, LINES/2, 0);
-    sendwin=newwin(LINES/2-1, COLS, LINES/2+1, 0);
+    receivewin = newwin(LINES/2, COLS, 0, 0);
+    sepwin = newwin(1, COLS, LINES/2, 0);
+    sendwin = newwin(LINES - LINES/2 - 1, COLS, LINES/2 + 1, 0);
 
     nodelay(sendwin, 1);
     idlok(sendwin, 1);
@@ -332,10 +336,38 @@ int main(int argc, char **argv) {
     FD_SET(fileno(stdin), &fdset);
     ret = select(sockfd+1, &fdset, NULL, NULL, NULL);
     if (ret < 0) {
-      if (errno == EINTR)
+      if (errno == EINTR) {
+	if (need_resize && use_curses) {
+	  need_resize = 0;
+
+	  endwin();
+	  refresh();
+
+	  wresize(receivewin, LINES/2, COLS);
+
+	  mvwin(sepwin, LINES/2, 0);
+	  wresize(sepwin, 1, COLS);
+	  werase(sepwin);
+	  mvwhline(sepwin, 0, 0, ACS_HLINE, COLS);
+
+	  mvwin(sendwin, LINES/2 + 1, 0);
+	  wresize(sendwin, LINES - LINES/2 - 1, COLS);
+
+	  werase(receivewin);
+	  wmove(receivewin, 0, 0);
+
+	  werase(sendwin);
+	  wmove(sendwin, 0, 0);
+
+	  wnoutrefresh(receivewin);
+	  wnoutrefresh(sendwin);
+	  wnoutrefresh(sepwin);
+	  doupdate();
+	}
 	continue;
-      else
+      } else {
 	fail(errno, "waiting for data");
+      }
     }
 
     if (FD_ISSET(sockfd, &fdset)) {
@@ -576,6 +608,10 @@ void send_connect_message(const char *recip, int port, char *execstr) {
 
 void kill_and_die(int sig) {
   bye("exiting due to interrupt");
+}
+
+void window_change(int sig) {
+  need_resize = 1;
 }
 
 void auth_con_setup(krb5_context context, krb5_auth_context *auth_context, krb5_address *local_address, krb5_address *foreign_address) {
