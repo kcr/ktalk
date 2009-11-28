@@ -45,7 +45,7 @@ int netread(int fd, char *ptr, int nbytes);
 int netwrite(int fd, char *ptr, int nbytes);
 int netreadlen(int fd);
 int netreaddata(int fd, char **ptr);
-void netwritedata(int fd, char *ptr, int nbytes);
+int netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(const char *recip, int port, char *estr);
 void kill_and_die(int);
 void window_change(int);
@@ -207,7 +207,9 @@ int main(int argc, char **argv) {
       fail(ret, "krb5_get_credentials");
 
     /* send over the user_user ticket */
-    netwritedata(sockfd, out_creds->ticket.data, out_creds->ticket.length);
+    ret = netwritedata(sockfd, out_creds->ticket.data, out_creds->ticket.length);
+    if (ret < 0)
+      fail(errno, "sending user-user ticket");
 
     /* initialize the auth_context */
     auth_con_setup(context, &auth_context, &local_address, &foreign_address);
@@ -292,7 +294,9 @@ int main(int argc, char **argv) {
     if (ret)
       fail(ret, "krb5_mk_req_extended");
 
-    netwritedata(sockfd, out_ticket.data, out_ticket.length);
+    ret = netwritedata(sockfd, out_ticket.data, out_ticket.length);
+    if (ret < 0)
+      fail(errno, "sending ticket to server");
     debug("sent mk req message, return was %i", ret);
 
     free(tkt_data.data); 
@@ -462,7 +466,9 @@ int main(int argc, char **argv) {
 	if (ret)
 	  fail(ret, "krb5_mk_priv");
 	debug_localseq(context, auth_context, "after");
-	netwritedata(sockfd, encmsg.data, encmsg.length);
+	ret = netwritedata(sockfd, encmsg.data, encmsg.length);
+	if (ret < 0)
+	  fail(errno, "sending chat data to party");
 	free(encmsg.data);
       }
     }
@@ -532,12 +538,22 @@ int netreadlen(int fd) {
 }
 
 
-void netwritedata(int fd, char *ptr, int nbytes) {
+int netwritedata(int fd, char *ptr, int nbytes) {
   char len[1024];
+  int ret, sent = 0;
 
   sprintf(len, "%i", nbytes);
-  netwrite(fd, len, strlen(len)+1);
-  netwrite(fd, ptr, nbytes);
+  ret = netwrite(fd, len, strlen(len)+1);
+  if (ret < 0)
+    return ret;
+  sent += ret;
+
+  ret = netwrite(fd, ptr, nbytes);
+  if (ret < 0)
+    return ret;
+  sent += ret;
+
+  return sent;
 }
 
 
