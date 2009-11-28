@@ -72,6 +72,14 @@ inline void debug(const char *format, ...) {
   va_end(ap);
 }
 
+inline int receive_height(void) {
+  return LINES / 2;
+}
+
+inline int send_height(void) {
+  return LINES - receive_height() - 1;
+}
+
 void usage(const char *whoami) {
   fprintf(stderr, "usage: %s [-e messager] <user>\n       %s <user> <host> <port>\n", whoami, whoami);
   exit(1);
@@ -302,9 +310,9 @@ int main(int argc, char **argv) {
     writebufflen=0;
 
     /* setup send / receive windows and the seperator */
-    receivewin = newwin(LINES/2, COLS, 0, 0);
-    sepwin = newwin(1, COLS, LINES/2, 0);
-    sendwin = newwin(LINES - LINES/2 - 1, COLS, LINES/2 + 1, 0);
+    receivewin = newwin(receive_height(), COLS, 0, 0);
+    sepwin = newwin(1, COLS, receive_height(), 0);
+    sendwin = newwin(send_height(), COLS, receive_height() + 1, 0);
 
     nodelay(sendwin, 1);
     idlok(sendwin, 1);
@@ -341,15 +349,15 @@ int main(int argc, char **argv) {
 	  endwin();
 	  refresh();
 
-	  wresize(receivewin, LINES/2, COLS);
+	  wresize(receivewin, receive_height(), COLS);
 
-	  mvwin(sepwin, LINES/2, 0);
+	  mvwin(sepwin, receive_height(), 0);
 	  wresize(sepwin, 1, COLS);
 	  werase(sepwin);
 	  mvwhline(sepwin, 0, 0, ACS_HLINE, COLS);
 
-	  mvwin(sendwin, LINES/2 + 1, 0);
-	  wresize(sendwin, LINES - LINES/2 - 1, COLS);
+	  mvwin(sendwin, receive_height() + 1, 0);
+	  wresize(sendwin, send_height(), COLS);
 
 	  werase(receivewin);
 	  wmove(receivewin, 0, 0);
