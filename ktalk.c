@@ -407,7 +407,14 @@ int main(int argc, char **argv) {
 	int j, x, y;
 
 	while((j = wgetch(sendwin)) != ERR) {
-	  if (j == 12) { /* ^L */
+	  if (j == 'U' - '@') { /* ^U */
+	    wstandout(sendwin);
+	    waddstr(sendwin, "^U");
+	    wstandend(sendwin);
+	    waddch(sendwin, '\n');
+	    writebuff[0] = 0;
+	    writebufflen = 0;
+	  } else if (j == 'L' - '@') { /* ^L */
 	    clearok(stdscr, TRUE);
 	    wnoutrefresh(stdscr);
 	    getyx(sendwin, y, x);
