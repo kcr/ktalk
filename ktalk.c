@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
     ret = krb5_unparse_name(context, inticket->enc_part2->client, &fprincipal);
     if (ret)
       fail(ret, "krb5_unparse_name");
-    strcat(startupmsg, "Foreign principal authenticates as ");
+    strcat(startupmsg, "Foreign party authenticates as ");
     strcat(startupmsg, fprincipal);
     strcat(startupmsg, "\n\n");
 
@@ -308,18 +308,19 @@ int main(int argc, char **argv) {
     idlok(receivewin, 1);
     scrollok(receivewin, 1);
 
-    for (i=0; i<COLS; i++) {
-      waddstr(sepwin, "-");
-    }
+    whline(sepwin, ACS_HLINE, COLS);
 
     wmove(receivewin, 0, 0);
     wmove(sendwin, 0, 0);
 
+    wstandout(receivewin);
     waddstr(receivewin, startupmsg);
+    wstandend(receivewin);
   
-    wrefresh(receivewin);
-    wrefresh(sendwin);
-    wrefresh(sepwin);
+    wnoutrefresh(receivewin);
+    wnoutrefresh(sendwin);
+    wnoutrefresh(sepwin);
+    doupdate();
   }
 
 
