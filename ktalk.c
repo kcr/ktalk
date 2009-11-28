@@ -50,7 +50,6 @@ int netwritedata(int fd, char *ptr, int nbytes);
 void send_connect_message(const char *recip, int port, char *estr);
 void kill_and_die(int);
 void window_change(int);
-
 void auth_con_setup(krb5_context context, krb5_auth_context * auth_context,
 		    krb5_address * local_address,
 		    krb5_address * foreign_address);
@@ -209,12 +208,13 @@ main(int argc, char **argv) {
 				   krb5_princ_realm(context,
 						    in_creds.client)->length,
 				   krb5_princ_realm(context,
-						    in_creds.client)->data, 6,
-				   "krbtgt", krb5_princ_realm(context,
-							      in_creds.client)->
-				   length, krb5_princ_realm(context,
-							    in_creds.client)->
-				   data, 0);
+						    in_creds.client)->data,
+				   6, "krbtgt",
+				   krb5_princ_realm(context,
+						    in_creds.client)->length,
+				   krb5_princ_realm(context,
+						    in_creds.client)->data,
+				   0);
     if (ret)
       fail(ret, "krb5_build_principal_ext");
 
@@ -257,7 +257,7 @@ main(int argc, char **argv) {
     strcat(startupmsg, fprincipal);
     strcat(startupmsg, "\n\n");
 
-								       /* this is a little wrong, the argv[1] may have @ATHENA.MIT.EDU *//***** need to fix *****/
+    /* this is a little wrong, the argv[1] may have @ATHENA.MIT.EDU *//***** need to fix *****/
     ret = krb5_parse_name(context, argv[optind], &clprinc);
     if (ret)
       fail(ret, "krb5_parse_name");
@@ -277,14 +277,8 @@ main(int argc, char **argv) {
   } else if (mode == MODE_CLIENT) {
     krb5_data tkt_data, out_ticket;
     krb5_creds *new_creds, creds;
-    /* char fprincipal[1024]; */
 
     auth_con_setup(context, &auth_context, &local_address, &foreign_address);
-
-    /* get the principal */
-    /*    i=netreaddata(sockfd, fprincipal);
-       debug("got foreign principal %s over the wire", fprincipal);
-     */
 
     /* read the ticket sent by the server */
     ret = netreaddata(sockfd, &tkt_data.data);
@@ -366,7 +360,6 @@ main(int argc, char **argv) {
 
     doupdate();
   }
-
 
   for (;;) {
     FD_ZERO(&fdset);
@@ -505,9 +498,7 @@ main(int argc, char **argv) {
     if (use_curses)
       doupdate();
   }
-
 }
-
 
 int
 netread(int fd, char *ptr, int nbytes) {
@@ -527,7 +518,6 @@ netread(int fd, char *ptr, int nbytes) {
   return (nbytes - nleft);
 }
 
-
 int
 netwrite(int fd, char *ptr, int nbytes) {
   int nleft, nwritten;
@@ -543,7 +533,6 @@ netwrite(int fd, char *ptr, int nbytes) {
   }
   return (nbytes - nleft);
 }
-
 
 int
 netreadlen(int fd) {
@@ -571,7 +560,6 @@ netreadlen(int fd) {
   return (ret);
 }
 
-
 int
 netwritedata(int fd, char *ptr, int nbytes) {
   char len[1024];
@@ -590,7 +578,6 @@ netwritedata(int fd, char *ptr, int nbytes) {
 
   return sent;
 }
-
 
 int
 netreaddata(int fd, char **p) {
@@ -613,7 +600,6 @@ netreaddata(int fd, char **p) {
 
   return i;
 }
-
 
 void
 send_connect_message(const char *recip, int port, char *execstr) {
