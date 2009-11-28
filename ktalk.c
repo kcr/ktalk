@@ -56,6 +56,7 @@ void debug_localseq(krb5_context context, krb5_auth_context auth_context, const 
 void sockaddr_to_krb5_address(krb5_address *k5, struct sockaddr *sock);
 void fail(long err, const char *context);
 void bye(const char *message);
+void clear_windows(WINDOW *win1, WINDOW *win2);
 
 int sockfd, curs_start, use_curses, debug_flag;
 int need_resize = 0;
@@ -321,17 +322,14 @@ int main(int argc, char **argv) {
     scrollok(receivewin, 1);
 
     whline(sepwin, ACS_HLINE, COLS);
+    wnoutrefresh(sepwin);
 
-    wmove(receivewin, 0, 0);
-    wmove(sendwin, 0, 0);
+    clear_windows(receivewin, sendwin);
 
     wstandout(receivewin);
     waddstr(receivewin, startupmsg);
     wstandend(receivewin);
   
-    wnoutrefresh(receivewin);
-    wnoutrefresh(sendwin);
-    wnoutrefresh(sepwin);
     doupdate();
   }
 
@@ -359,15 +357,9 @@ int main(int argc, char **argv) {
 	  mvwin(sendwin, receive_height() + 1, 0);
 	  wresize(sendwin, send_height(), COLS);
 
-	  werase(receivewin);
-	  wmove(receivewin, 0, 0);
-
-	  werase(sendwin);
-	  wmove(sendwin, 0, 0);
+	  clear_windows(receivewin, sendwin);
 	  waddstr(sendwin, writebuff);
 
-	  wnoutrefresh(receivewin);
-	  wnoutrefresh(sendwin);
 	  wnoutrefresh(sepwin);
 	}
       } else {
@@ -414,11 +406,15 @@ int main(int argc, char **argv) {
 	    waddch(sendwin, '\n');
 	    writebuff[0] = 0;
 	    writebufflen = 0;
-	  } else if (j == 'L' - '@') { /* ^L */
+	  } else if (j == 'R' - '@') { /* ^R */
 	    clearok(stdscr, TRUE);
 	    wnoutrefresh(stdscr);
 	    getyx(sendwin, y, x);
 	    wmove(sendwin, y, x);
+	  } else if (j == 'L' - '@') { /* ^L */
+	    writebuff[0] = 0;
+	    writebufflen = 0;
+	    clear_windows(receivewin, sendwin);
 	  } else if (j == 8 || j == 127) {
 	    if (writebufflen) {
 	      getyx(sendwin, y, x);
@@ -437,7 +433,6 @@ int main(int argc, char **argv) {
 	      wmove(sendwin, y, x - 1);
 	      waddch(sendwin, ' ');
 	      wmove(sendwin, y, x - 1);
-	      wnoutrefresh(sendwin);
 	      writebufflen--;
 	      writebuff[writebufflen] = 0;
 	    }
@@ -445,10 +440,10 @@ int main(int argc, char **argv) {
 	    writebuff[writebufflen] = j;
 	    writebufflen++;
 	    waddch(sendwin, j);
-	    wnoutrefresh(sendwin);
 
 	    writebuff[writebufflen] = 0;
 	  }
+	  wnoutrefresh(sendwin);
 	}
       }
       if (writebufflen && (writebuff[writebufflen - 1] == '\n'
@@ -779,6 +774,16 @@ void bye(const char *message) {
     endwin();
   puts(message);
   exit(0);
+}
+
+void clear_windows(WINDOW *win1, WINDOW *win2) {
+  werase(win1);
+  wmove(win1, 0, 0);
+  wnoutrefresh(win1);
+
+  werase(win2);
+  wmove(win2, 0, 0);
+  wnoutrefresh(win2);
 }
 /*
  * Local Variables:
