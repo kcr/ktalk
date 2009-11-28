@@ -441,7 +441,7 @@ int main(int argc, char **argv) {
 	      writebufflen--;
 	      writebuff[writebufflen] = 0;
 	    }
-	  } else if (j > 32 || j == 10 || j ==13) {
+	  } else if ((j < 128 && j > 32) || j == 10 || j == 13) {
 	    writebuff[writebufflen] = j;
 	    writebufflen++;
 	    waddch(sendwin, j);
