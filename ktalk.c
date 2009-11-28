@@ -364,6 +364,7 @@ int main(int argc, char **argv) {
 
 	  werase(sendwin);
 	  wmove(sendwin, 0, 0);
+	  waddstr(sendwin, writebuff);
 
 	  wnoutrefresh(receivewin);
 	  wnoutrefresh(sendwin);
